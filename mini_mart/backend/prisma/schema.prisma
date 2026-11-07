@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  sales
+}
+
+enum TransactionType {
+  ADD_STOCK
+  SALE
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  role         Role
+  passwordHash String?  @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("qm_users")
+}
+
+model Category {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name     String    @unique
+  products Product[]
+
+  @@map("qm_categories")
+}
+
+model Product {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  categoryId     String            @map("category_id") @db.Uuid
+  category       Category          @relation(fields: [categoryId], references: [id])
+  purchasedPrice Decimal           @map("purchased_price") @db.Decimal(12, 2)
+  sellingPrice   Decimal           @map("selling_price") @db.Decimal(12, 2)
+  stockQuantity  Int               @default(0) @map("stock_quantity")
+  minStockLevel  Int               @default(5) @map("min_stock_level")
+  transactions   TransactionItem[]
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("qm_products")
+}
+
+model Transaction {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type        TransactionType
+  totalAmount Decimal           @map("total_amount") @db.Decimal(12, 2)
+  totalCost   Decimal           @map("total_cost") @db.Decimal(12, 2)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  items       TransactionItem[]
+
+  @@map("qm_transactions")
+}
+
+model TransactionItem {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionId String      @map("transaction_id") @db.Uuid
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId     String      @map("product_id") @db.Uuid
+  product       Product     @relation(fields: [productId], references: [id])
+  quantity      Int
+  unitPrice     Decimal     @map("unit_price") @db.Decimal(12, 2)
+  unitCost      Decimal     @map("unit_cost") @db.Decimal(12, 2)
+
+  @@map("qm_transaction_items")
+}
+
+model Order {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderDate  DateTime    @default(now()) @map("order_date") @db.Date
+  status     OrderStatus @default(PENDING)
+  totalItems Int         @map("total_items")
+  items      OrderItem[]
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  clearedAt  DateTime?   @map("cleared_at") @db.Timestamptz
+
+  @@index([clearedAt])
+  @@map("qm_orders")
+}
+
+model OrderItem {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String @map("order_id") @db.Uuid
+  order       Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productName String @map("product_name")
+  quantity    Int
+
+  @@map("qm_order_items")
+}

@@ -1,0 +1,15 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO $$ BEGIN CREATE TYPE "Role" AS ENUM ('admin','sales'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "TransactionType" AS ENUM ('ADD_STOCK','SALE'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "OrderStatus" AS ENUM ('PENDING','COMPLETED','CANCELLED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE TABLE IF NOT EXISTS qm_users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text UNIQUE NOT NULL, role "Role" NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS qm_categories (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text UNIQUE NOT NULL);
+CREATE TABLE IF NOT EXISTS qm_products (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, category_id uuid NOT NULL REFERENCES qm_categories(id), purchased_price numeric(12,2) NOT NULL CHECK(purchased_price>=0), selling_price numeric(12,2) NOT NULL CHECK(selling_price>=0), stock_quantity integer NOT NULL DEFAULT 0 CHECK(stock_quantity>=0), min_stock_level integer NOT NULL DEFAULT 5 CHECK(min_stock_level>=0), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS qm_transactions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), type "TransactionType" NOT NULL, total_amount numeric(12,2) NOT NULL, total_cost numeric(12,2) NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS qm_transaction_items (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), transaction_id uuid NOT NULL REFERENCES qm_transactions(id) ON DELETE CASCADE, product_id uuid NOT NULL REFERENCES qm_products(id), quantity integer NOT NULL CHECK(quantity>0), unit_price numeric(12,2) NOT NULL, unit_cost numeric(12,2) NOT NULL);
+CREATE TABLE IF NOT EXISTS qm_orders (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), order_date date NOT NULL DEFAULT current_date, status "OrderStatus" NOT NULL DEFAULT 'PENDING', total_items integer NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS qm_order_items (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), order_id uuid NOT NULL REFERENCES qm_orders(id) ON DELETE CASCADE, product_name text NOT NULL, quantity integer NOT NULL CHECK(quantity>0));
+CREATE INDEX IF NOT EXISTS qm_transactions_date_idx ON qm_transactions(created_at);
+CREATE INDEX IF NOT EXISTS qm_orders_date_idx ON qm_orders(order_date);
+INSERT INTO qm_users(email,role) VALUES ('admin@queenmart.com','admin') ON CONFLICT(email) DO NOTHING;
+INSERT INTO qm_categories(name) VALUES ('Beverages'),('Dairy'),('Snacks'),('Household'),('Bakery') ON CONFLICT(name) DO NOTHING;
