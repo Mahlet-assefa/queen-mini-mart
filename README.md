@@ -1,47 +1,70 @@
 # Queen Mart
 
-Sales, inventory, finance, orders, and activity tracking for a mini-mart.
+Queen Mart is a web app for running a small shop's daily inventory, sales, purchasing, and financial records. It gives sales staff a simple place to record stock changes and gives administrators a broader view of products, profit, and activity. Money is displayed in Ethiopian birr (ETB), and daily reports use the Africa/Addis_Ababa time zone.
 
-Clearing orders marks the current orders complete, removes them from the active list, and keeps them in the order details history by clearing day.
+## What it does
 
-## Project layout
+- **Inventory:** Add products and categories, track quantities and low-stock thresholds, and record stock additions or sales.
+- **Sales and finance:** See today's sales, daily transactions, and administrator reports for daily, weekly, monthly, and yearly sales and net profit.
+- **Supplier orders:** Create orders manually, from low-stock items, or by selecting products and quantities. Clear a completed batch while keeping its details in order history. Export the active orders as CSV.
+- **Activity tracker:** Browse sales and stock activity by date.
+- **Accounts:** Sign in with email and password. The initial administrator is set up with a one-time command; people who register in the app receive sales accounts.
 
-- `mini_mart/frontend` — Next.js app. Deploy it with `API_BASE_URL` pointing to the backend.
-- `mini_mart/backend` — Express API, Prisma schema, migrations, and optional sample seed.
-- Root scripts run both apps together for local development.
+Administrators can manage the product catalog and see purchase prices, profit reports, the dashboard, and the date tracker. Sales accounts can record sales and stock changes, see the daily cash summary, and create supplier orders.
+
+## Tech stack
+
+| Part           | Technology                        |
+| -------------- | --------------------------------- |
+| Frontend       | Next.js, React, TypeScript        |
+| API            | Node.js, Express                  |
+| Database       | PostgreSQL with Prisma migrations |
+| Local database | Docker Compose                    |
+
+The frontend calls `/api` on its own origin. A Next.js rewrite forwards those requests to the Express API, so the browser does not need a separate API URL.
+
+```text
+mini_mart/
+  frontend/       Next.js app, styles, and components
+  backend/        Express API, Prisma schema, and migrations
+scripts/          Local frontend and backend runner
+tests/            Unit and API integration checks
+```
+
+The frontend and backend each have their own `package.json` and lockfile so they can be deployed as separate services. The root package runs them together for local development.
 
 ## Run locally
+
+You need Node.js 22, npm, and Docker. From the repository root:
 
 ```bash
 cp .env.example .env
 docker compose up -d --wait db
-npm install
+npm ci
 npm run db:generate
 npm run db:migrate
 ADMIN_PASSWORD='choose-a-long-unique-password' npm run db:admin
 npm run dev
 ```
 
-Open the Local URL printed by Next.js, usually `http://127.0.0.1:3000`. The API runs on port 4000. Sign in with `admin@queenmart.com` and the password you set in `db:admin`. Sales users can register with email and password. The database starts with one admin placeholder and standard categories, and no products or activity. Run `npm run db:seed` only if you want sample products.
+Replace the example admin password with a private password of at least 10 characters. Also replace `SESSION_SECRET` in `.env` with a long random value. The `.env` file is ignored by Git.
 
-## Deploy separately
+Open the URL printed by Next.js, usually `http://127.0.0.1:3000`. Sign in using `admin@queenmart.com` and the password you set above. A new database has standard categories and no products; `npm run db:seed` can add sample products for a demo. You can also create a sales account from the sign-in screen.
 
-Follow [DEPLOY.md](DEPLOY.md) for the Netlify, Render, and Neon setup.
+## Useful commands
 
-Each folder has its own `package.json` and `.env.example`. Install dependencies in that folder, then run its scripts. Set `API_BASE_URL` on the frontend to the backend origin. Set `DATABASE_URL` and a long, stable `SESSION_SECRET` on the backend. Set `HOST=0.0.0.0` if your host requires an external listener. After deploying the backend and running `db:migrate`, run `db:admin` once with private `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables. That command sets the single admin account password; public signup creates sales accounts only. Keep the same `SESSION_SECRET` across backend restarts. Run `db:admin` again to change the admin password.
+| Command              | Purpose                                           |
+| -------------------- | ------------------------------------------------- |
+| `npm run dev`        | Start the frontend and API locally                |
+| `npm run db:migrate` | Apply database migrations                         |
+| `npm run db:admin`   | Create or update the single administrator account |
+| `npm run db:seed`    | Add optional sample products                      |
+| `npm test`           | Run the small unit test suite                     |
+| `npm run typecheck`  | Check frontend types                              |
+| `npm run build`      | Build the frontend for production                 |
 
-## PostgreSQL / TablePlus
+The API integration test (`npm run test:api`) creates records, so run it against a separate test database. See [SETUP.md](SETUP.md) for local database notes.
 
-| Field    | Value for local Docker |
-| -------- | ---------------------- |
-| Host     | `127.0.0.1`            |
-| Port     | `5432`                 |
-| Database | `mini_mart`            |
-| User     | `mini_mart`            |
-| Password | `mini_mart`            |
+## Deployment
 
-Connection string: `postgres://mini_mart:mini_mart@127.0.0.1:5432/mini_mart`.
-
-## Checks
-
-Run `npm test`, `npm run typecheck`, and `npm run build`. With the API and a separate test database running, set `TEST_ADMIN_PASSWORD` and run `npm run test:api` to check auth, product actions, finance periods, and orders. The integration test creates records.
+The app can run with the frontend on Netlify, the API on Render, and PostgreSQL on Neon. See [DEPLOY.md](DEPLOY.md) for the provider settings and deployment order. Set a new production admin password and `SESSION_SECRET`; do not commit database URLs or other secrets. Local Docker data is not transferred to a hosted database automatically.

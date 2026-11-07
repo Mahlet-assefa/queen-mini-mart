@@ -4,7 +4,7 @@ The frontend and backend are separate projects in this repository. Deploy from a
 
 ## 1. Publish the code
 
-Create an empty **private** GitHub repository. This local repository has no remote yet. From the project root, commit the source and push it to your new repository. Check `git status` before pushing: `.env` files and `node_modules` must not appear.
+Create a GitHub repository and push the project source to it. Check `git status` before pushing: `.env` files and `node_modules` must not appear.
 
 ## 2. Create Neon PostgreSQL
 
@@ -26,23 +26,23 @@ Before running the last two commands, edit `mini_mart/backend/.env`: replace `DA
 
 Create a **Web Service** from the same GitHub repository:
 
-| Setting | Value |
-| --- | --- |
-| Root directory | `mini_mart/backend` |
-| Language | Node |
-| Region | Frankfurt |
-| Build command | `npm ci && npm run db:generate` |
-| Start command | `npm start` |
-| Health check path | `/api/health` |
+| Setting           | Value                           |
+| ----------------- | ------------------------------- |
+| Root directory    | `mini_mart/backend`             |
+| Language          | Node                            |
+| Region            | Frankfurt                       |
+| Build command     | `npm ci && npm run db:generate` |
+| Start command     | `npm start`                     |
+| Health check path | `/api/health`                   |
 
 Set these environment variables in Render:
 
-| Variable | Value |
-| --- | --- |
-| `DATABASE_URL` | The Neon connection string |
+| Variable         | Value                                                            |
+| ---------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`   | The Neon connection string                                       |
 | `SESSION_SECRET` | A new, long random secret that stays the same across deployments |
-| `HOST` | `0.0.0.0` |
-| `NODE_VERSION` | `22.22.0` |
+| `HOST`           | `0.0.0.0`                                                        |
+| `NODE_VERSION`   | `22.22.0`                                                        |
 
 Do not set `ADMIN_PASSWORD` on the running service. Render supplies `PORT`. A paid Render service can use `npm run db:migrate` as a pre-deploy command for later schema changes; Render Free has no pre-deploy command, so run migrations from this computer before deploying updated code. Copy the resulting `https://...onrender.com` URL and check `/api/health` returns `{"ok":true}`.
 
