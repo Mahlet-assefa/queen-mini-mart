@@ -8,19 +8,17 @@ Create a GitHub repository and push the project source to it. Check `git status`
 
 ## 2. Create Neon PostgreSQL
 
-Create a Neon project in **Frankfurt**. Copy its pooled PostgreSQL connection string, including its SSL settings. Keep the string private.
+Create a Neon project in **Frankfurt**. Run `neon init` and `neon deploy` from the repository root to link the project and pull its connection strings into the ignored root `.env`. `DATABASE_URL` is pooled for app queries; `DATABASE_URL_UNPOOLED` is direct for Prisma migrations. Keep both strings private.
 
-To initialize the production database from this computer:
+To initialize the production database from this computer after `neon deploy`:
 
 ```bash
-cp mini_mart/backend/.env.example mini_mart/backend/.env
-npm ci --prefix mini_mart/backend
-npm run db:generate --prefix mini_mart/backend
-npm run db:migrate --prefix mini_mart/backend
-npm run db:admin --prefix mini_mart/backend
+npm run db:generate
+npm run db:migrate
+ADMIN_PASSWORD='choose-a-long-unique-password' npm run db:admin
 ```
 
-Before running the last two commands, edit `mini_mart/backend/.env`: replace `DATABASE_URL` with the Neon connection string, set `ADMIN_EMAIL`, and add a new, strong `ADMIN_PASSWORD`. Remove `ADMIN_PASSWORD` from the local file after `db:admin` succeeds. `db:migrate` creates the tables and standard categories; `db:admin` sets the one admin password. The local Docker data is **not** copied to Neon by these commands.
+The commands use the Neon URLs in the root `.env`; the admin command uses the default `admin@queenmart.com` unless you set `ADMIN_EMAIL`. Replace the example password with a private password of at least 10 characters. `db:migrate` creates the tables and standard categories; `db:admin` sets the one admin password. The local Docker data is **not** copied to Neon by these commands.
 
 ## 3. Deploy the Render API
 
@@ -37,12 +35,13 @@ Create a **Web Service** from the same GitHub repository:
 
 Set these environment variables in Render:
 
-| Variable         | Value                                                            |
-| ---------------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`   | The Neon connection string                                       |
-| `SESSION_SECRET` | A new, long random secret that stays the same across deployments |
-| `HOST`           | `0.0.0.0`                                                        |
-| `NODE_VERSION`   | `22.22.0`                                                        |
+| Variable                | Value                                                            |
+| ----------------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`          | The pooled Neon connection string                                 |
+| `DATABASE_URL_UNPOOLED` | The direct Neon connection string for migrations                  |
+| `SESSION_SECRET`        | A new, long random secret that stays the same across deployments |
+| `HOST`                  | `0.0.0.0`                                                        |
+| `NODE_VERSION`          | `22.22.0`                                                        |
 
 Do not set `ADMIN_PASSWORD` on the running service. Render supplies `PORT`. A paid Render service can use `npm run db:migrate` as a pre-deploy command for later schema changes; Render Free has no pre-deploy command, so run migrations from this computer before deploying updated code. Copy the resulting `https://...onrender.com` URL and check `/api/health` returns `{"ok":true}`.
 
