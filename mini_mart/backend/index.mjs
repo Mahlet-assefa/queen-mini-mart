@@ -41,6 +41,12 @@ const orderJson = (o) => ({
   totalItems: o.totalItems,
   items: o.items.map((i) => ({ productName: i.productName, quantity: i.quantity })),
 });
+const publicUser = (user) => ({
+  id: user.id,
+  email: user.email,
+  role: user.role,
+  mustChangePassword: user.mustChangePassword,
+});
 
 app.get(
   '/api/health',
@@ -62,7 +68,7 @@ app.post(
       data: { email, role: 'sales', passwordHash: await hashPassword(password) },
     });
     setSession(res, user);
-    res.status(201).json({ id: user.id, email: user.email, role: user.role });
+    res.status(201).json(publicUser(user));
   }),
 );
 app.post(
@@ -76,7 +82,7 @@ app.post(
     if (!user || !(await verifyPassword(password, user.passwordHash)))
       return res.status(401).json({ error: 'Invalid email or password.' });
     setSession(res, user);
-    res.json({ id: user.id, email: user.email, role: user.role });
+    res.json(publicUser(user));
   }),
 );
 function setSession(res, user) {
@@ -102,11 +108,34 @@ app.use(
     )
       return res.status(401).json({ error: 'Session expired.' });
     req.user = user;
+    if (user.mustChangePassword && !['/auth/me', '/auth/change-password'].includes(req.path))
+      return res.status(403).json({ error: 'Change your password to continue.' });
     next();
   }),
 );
-app.get('/api/auth/me', (req, res) =>
-  res.json({ id: req.user.id, email: req.user.email, role: req.user.role }),
+app.get('/api/auth/me', (req, res) => res.json(publicUser(req.user)));
+app.post(
+  '/api/auth/change-password',
+  run(async (req, res) => {
+    const currentPassword = req.body?.currentPassword;
+    const newPassword = req.body?.newPassword;
+    if (typeof currentPassword !== 'string' || !currentPassword)
+      return res.status(400).json({ error: 'Enter your current password.' });
+    if (!validPassword(newPassword) || newPassword === currentPassword)
+      return res.status(400).json({ error: 'Choose a different password of 10–128 characters.' });
+    if (!(await verifyPassword(currentPassword, req.user.passwordHash)))
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+    const passwordHash = await hashPassword(newPassword);
+    const changed = await prisma.user.updateMany({
+      where: { id: req.user.id, passwordHash: req.user.passwordHash },
+      data: { passwordHash, mustChangePassword: false },
+    });
+    if (!changed.count)
+      return res.status(409).json({ error: 'Password changed elsewhere. Sign in again.' });
+    const user = { ...req.user, passwordHash, mustChangePassword: false };
+    setSession(res, user);
+    res.json(publicUser(user));
+  }),
 );
 const admin = (req, res, next) =>
   req.user.role === 'admin' ? next() : res.status(403).json({ error: 'Admin access required.' });

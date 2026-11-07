@@ -8,7 +8,7 @@ Queen Mart is a web app for running a small shop's daily inventory, sales, purch
 - **Sales and finance:** See today's sales, daily transactions, and administrator reports for daily, weekly, monthly, and yearly sales and net profit.
 - **Supplier orders:** Create orders manually, from low-stock items, or by selecting products and quantities. Clear a completed batch while keeping its details in order history. Export the active orders as CSV.
 - **Activity tracker:** Browse sales and stock activity by date.
-- **Accounts:** Sign in with email and password. The initial administrator is set up with a one-time command; people who register in the app receive sales accounts.
+- **Accounts:** Sign in with email and password. The initial administrator is set up with a one-time command and must choose a private password at the next sign-in; people who register in the app receive sales accounts.
 
 Administrators can manage the product catalog and see purchase prices, profit reports, the dashboard, and the date tracker. Sales accounts can record sales and stock changes, see the daily cash summary, and create supplier orders.
 

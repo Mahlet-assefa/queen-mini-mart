@@ -149,7 +149,8 @@ select:focus-visible {
   font-weight: 700;
   flex: 0 0 auto;
 }
-.logout {
+.logout,
+.account-action {
   border: 0;
   background: #f4f6f3;
   border-radius: 8px;
@@ -162,6 +163,14 @@ select:focus-visible {
   gap: 7px;
   font-size: 13px;
   font-weight: 600;
+}
+.account-action {
+  margin-bottom: 7px;
+  color: var(--green-dark);
+  background: #eaf5ed;
+}
+.account-action:hover {
+  background: #d9eddf;
 }
 .logout:hover {
   background: #e9eee9;
@@ -1029,6 +1038,9 @@ td strong {
   }
   .user-chip > span:last-child,
   .logout {
+    display: none;
+  }
+  .account-action span {
     display: none;
   }
   .main {

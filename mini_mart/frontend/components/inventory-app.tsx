@@ -71,6 +71,12 @@ export default function InventoryApp() {
     [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [authError, setAuthError] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false),
+    [currentPassword, setCurrentPassword] = useState(''),
+    [newPassword, setNewPassword] = useState(''),
+    [confirmPassword, setConfirmPassword] = useState(''),
+    [passwordError, setPasswordError] = useState(''),
+    [savingPassword, setSavingPassword] = useState(false);
   const [section, setSection] = useState<Section>('dashboard'),
     [products, setProducts] = useState<Product[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
@@ -143,7 +149,7 @@ export default function InventoryApp() {
     return () => clearTimeout(id);
   }, [toast]);
   async function refresh(u = user) {
-    if (!u) return;
+    if (!u || u.mustChangePassword) return;
     setLoading(true);
     setError('');
     try {
@@ -190,6 +196,32 @@ export default function InventoryApp() {
     setUser(null);
     setProducts([]);
     setDashboard(null);
+    setChangingPassword(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  }
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordError('');
+    if (newPassword !== confirmPassword) return setPasswordError('New passwords do not match.');
+    setSavingPassword(true);
+    try {
+      const updated = await api<User>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      setUser(updated);
+      setChangingPassword(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setToast('Password changed');
+    } catch (error) {
+      setPasswordError((error as Error).message);
+    } finally {
+      setSavingPassword(false);
+    }
   }
   const low = products.filter((p) => p.stockQuantity <= p.minStockLevel);
   const filtered = products
@@ -415,6 +447,73 @@ export default function InventoryApp() {
         </section>
       </main>
     );
+  if (user.mustChangePassword || changingPassword)
+    return (
+      <main className="auth-page">
+        <section className="auth-card">
+          <div className="auth-brand">
+            <span className="brand-mark">Q</span>
+            <div>
+              <strong>Queen Mart</strong>
+              <small>Account security</small>
+            </div>
+          </div>
+          <h1>Change your password</h1>
+          <p className="muted">
+            {user.mustChangePassword
+              ? 'Set a private password before using the admin account.'
+              : 'Enter your current password and choose a new one.'}
+          </p>
+          <form onSubmit={changePassword}>
+            <label>
+              Current password
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                autoFocus
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={10}
+                maxLength={128}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </label>
+            <label>
+              Confirm new password
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={10}
+                maxLength={128}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </label>
+            {passwordError && <p className="error">{passwordError}</p>}
+            <button className="primary-button full" disabled={savingPassword}>
+              {savingPassword ? 'Saving…' : 'Save new password'}
+            </button>
+          </form>
+          <button
+            className="text-button auth-switch"
+            onClick={user.mustChangePassword ? signout : () => setChangingPassword(false)}
+          >
+            {user.mustChangePassword ? 'Sign out' : 'Cancel'}
+          </button>
+        </section>
+      </main>
+    );
   const nav: { id: Section; label: string; icon: typeof Package }[] = [
     ...(user.role === 'admin'
       ? [{ id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard }]
@@ -455,6 +554,11 @@ export default function InventoryApp() {
               <small>{user.email}</small>
             </span>
           </div>
+          {user.role === 'admin' && (
+            <button className="account-action" onClick={() => setChangingPassword(true)}>
+              <Pencil size={17} /> <span>Change password</span>
+            </button>
+          )}
           <button className="logout" onClick={signout}>
             <LogOut size={17} /> Sign out
           </button>

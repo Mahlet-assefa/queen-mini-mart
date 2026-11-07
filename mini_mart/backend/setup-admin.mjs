@@ -17,12 +17,14 @@ try {
   if (admins.length) {
     await prisma.user.update({
       where: { id: admins[0].id },
-      data: { email, passwordHash },
+      data: { email, passwordHash, mustChangePassword: true },
     });
   } else {
-    await prisma.user.create({ data: { email, role: 'admin', passwordHash } });
+    await prisma.user.create({
+      data: { email, role: 'admin', passwordHash, mustChangePassword: true },
+    });
   }
-  console.log(`Admin account ready: ${email}`);
+  console.log(`Admin account ready: ${email}. Password change required at next sign-in.`);
 } finally {
   await prisma.$disconnect();
 }

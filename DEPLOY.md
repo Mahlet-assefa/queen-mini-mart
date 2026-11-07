@@ -18,7 +18,7 @@ npm run db:migrate
 ADMIN_PASSWORD='choose-a-long-unique-password' npm run db:admin
 ```
 
-The commands use the Neon URLs in the root `.env`; the admin command uses the default `admin@queenmart.com` unless you set `ADMIN_EMAIL`. Replace the example password with a private password of at least 10 characters. `db:migrate` creates the tables and standard categories; `db:admin` sets the one admin password. The local Docker data is **not** copied to Neon by these commands.
+The commands use the Neon URLs in the root `.env`; the admin command uses the default `admin@queenmart.com` unless you set `ADMIN_EMAIL`. Replace the example password with a private password of at least 10 characters. `db:migrate` creates the tables and standard categories; `db:admin` sets the handoff password and requires the admin to choose a new one at the next sign-in. The local Docker data is **not** copied to Neon by these commands.
 
 ## 3. Deploy the Render API
 
@@ -37,8 +37,8 @@ Set these environment variables in Render:
 
 | Variable                | Value                                                            |
 | ----------------------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`          | The pooled Neon connection string                                 |
-| `DATABASE_URL_UNPOOLED` | The direct Neon connection string for migrations                  |
+| `DATABASE_URL`          | The pooled Neon connection string                                |
+| `DATABASE_URL_UNPOOLED` | The direct Neon connection string for migrations                 |
 | `SESSION_SECRET`        | A new, long random secret that stays the same across deployments |
 | `HOST`                  | `0.0.0.0`                                                        |
 | `NODE_VERSION`          | `22.22.0`                                                        |

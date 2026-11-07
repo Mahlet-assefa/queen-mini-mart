@@ -1,4 +1,9 @@
-export type User = { id: string; email: string; role: 'admin' | 'sales' };
+export type User = {
+  id: string;
+  email: string;
+  role: 'admin' | 'sales';
+  mustChangePassword: boolean;
+};
 export type Category = { id: string; name: string; productCount: number };
 export type Product = {
   id: string;
