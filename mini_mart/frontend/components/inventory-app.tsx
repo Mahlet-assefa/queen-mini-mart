@@ -388,15 +388,15 @@ export default function InventoryApp() {
     setDetail(name);
     setModal('detail');
   }
-  if (checking) return <div className="loading">Opening Queen Mart…</div>;
+  if (checking) return <div className="loading">Opening Kim Mart…</div>;
   if (!user)
     return (
       <main className="auth-page">
         <section className="auth-card">
           <div className="auth-brand">
-            <span className="brand-mark">Q</span>
+            <span className="brand-mark">K</span>
             <div>
-              <strong>Queen Mart</strong>
+              <strong>Kim Mart</strong>
               <small>Sales & inventory</small>
             </div>
           </div>
@@ -441,7 +441,7 @@ export default function InventoryApp() {
             }}
           >
             {mode === 'signin'
-              ? 'New to Queen Mart? Create an account'
+              ? 'New to Kim Mart? Create an account'
               : 'Already have an account? Sign in'}
           </button>
         </section>
@@ -452,9 +452,9 @@ export default function InventoryApp() {
       <main className="auth-page">
         <section className="auth-card">
           <div className="auth-brand">
-            <span className="brand-mark">Q</span>
+            <span className="brand-mark">K</span>
             <div>
-              <strong>Queen Mart</strong>
+              <strong>Kim Mart</strong>
               <small>Account security</small>
             </div>
           </div>
@@ -529,9 +529,9 @@ export default function InventoryApp() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">Q</span>
+          <span className="brand-mark">K</span>
           <span>
-            Queen Mart<small>STORE OPERATIONS</small>
+            Kim Mart<small>STORE OPERATIONS</small>
           </span>
         </div>
         <nav aria-label="Main navigation">
@@ -565,7 +565,7 @@ export default function InventoryApp() {
         </div>
       </aside>
       <main className="main">
-        <div className="mobile-brand">Queen Mart</div>
+        <div className="mobile-brand">Kim Mart</div>
         {error && (
           <div className="load-error">
             {error} <button onClick={() => refresh()}>Retry</button>
@@ -876,7 +876,7 @@ export default function InventoryApp() {
                 onLow={() => openLowOrder(low)}
                 onChoose={openProductSelection}
                 onExport={() =>
-                  exportCsv('queen-mart-orders.csv', [
+                  exportCsv('kim-mart-orders.csv', [
                     ['Order ID', 'Date', 'Product', 'Quantity'],
                     ...orders.flatMap((o) =>
                       o.items.map((i) => [o.id, o.date.slice(0, 10), i.productName, i.quantity]),
