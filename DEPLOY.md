@@ -18,7 +18,7 @@ npm run db:migrate
 ADMIN_PASSWORD='choose-a-long-unique-password' npm run db:admin
 ```
 
-The commands use the Neon URLs in the root `.env`; the admin command uses the default `admin@queenmart.com` unless you set `ADMIN_EMAIL`. Replace the example password with a private password of at least 10 characters. `db:migrate` creates the tables and standard categories; `db:admin` sets the handoff password and requires the admin to choose a new one at the next sign-in. The local Docker data is **not** copied to Neon by these commands.
+The commands use the Neon URLs in the root `.env`; the admin command uses the default `admin@queenmart.com` unless you set `ADMIN_EMAIL`. Replace the example password with a private password of at least 10 characters. `db:migrate` creates the tables without starter categories; `db:admin` sets the handoff password and requires the admin to choose a new one at the next sign-in. The local Docker data is **not** copied to Neon by these commands.
 
 ## 3. Deploy the Render API
 

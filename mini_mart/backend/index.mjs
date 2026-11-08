@@ -151,12 +151,16 @@ app.get(
 );
 app.post(
   '/api/categories',
-  admin,
   run(async (req, res) => {
-    const name = String(req.body?.name || '').trim();
-    if (!name) return res.status(400).json({ error: 'Enter a category name.' });
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    if (!name || name.length > 80)
+      return res.status(400).json({ error: 'Enter a category name of up to 80 characters.' });
+    const existing = await prisma.category.findFirst({
+      where: { name: { equals: name, mode: 'insensitive' } },
+    });
+    if (existing) return res.status(409).json({ error: 'That category already exists.' });
     const c = await prisma.category.create({ data: { name } });
-    res.status(201).json(c);
+    res.status(201).json({ id: c.id, name: c.name, productCount: 0 });
   }),
 );
 app.get(
@@ -171,7 +175,6 @@ app.get(
 );
 app.post(
   '/api/products',
-  admin,
   run(async (req, res) => {
     const data = productInput(req.body);
     if (!data) return res.status(400).json({ error: 'Enter valid product details.' });

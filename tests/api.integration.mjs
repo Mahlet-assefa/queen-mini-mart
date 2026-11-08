@@ -21,7 +21,18 @@ async function authenticate(email, password, action) {
 test('dashboard, product, stock, finance, calendar, orders and role boundaries', async () => {
   assert.equal((await request('/health')).status, 200);
   await authenticate('admin@queenmart.com', process.env.TEST_ADMIN_PASSWORD, 'signin');
-  const category = (await request('/categories')).data[0].name;
+  const category = `Integration ${randomUUID().slice(0, 8)}`;
+  const createdCategory = await request('/categories', 'POST', { name: `  ${category}  ` });
+  assert.equal(createdCategory.status, 201);
+  assert.equal(createdCategory.data.name, category);
+  assert.equal(
+    (await request('/categories')).data.some((c) => c.name === category),
+    true,
+  );
+  assert.equal(
+    (await request('/categories', 'POST', { name: category.toLowerCase() })).status,
+    409,
+  );
   const name = `Integration ${randomUUID().slice(0, 8)}`;
   const product = await request('/products', 'POST', {
     name,
@@ -114,22 +125,22 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   const email = `test-${randomUUID()}@example.com`;
   await authenticate(email, 'integration-password-123', 'signup');
   assert.equal((await request('/dashboard')).status, 403);
+  const salesCategory = `Sales ${randomUUID().slice(0, 8)}`;
+  assert.equal((await request('/categories', 'POST', { name: salesCategory })).status, 201);
+  const salesProduct = await request('/products', 'POST', {
+    name: `Sales product ${randomUUID().slice(0, 8)}`,
+    category: salesCategory,
+    purchasedPrice: 1,
+    sellingPrice: 2,
+    stockQuantity: 1,
+    minStockLevel: 1,
+  });
+  assert.equal(salesProduct.status, 201);
+  assert.equal(salesProduct.data.purchasedPrice, undefined);
+  assert.equal((await request(`/products/${salesProduct.data.id}`, 'DELETE')).status, 403);
   assert.equal(
     (await request('/products')).data.find((p) => p.id === id).purchasedPrice,
     undefined,
-  );
-  assert.equal(
-    (
-      await request('/products', 'POST', {
-        name: 'Unauthorized',
-        category,
-        purchasedPrice: 1,
-        sellingPrice: 2,
-        stockQuantity: 1,
-        minStockLevel: 1,
-      })
-    ).status,
-    403,
   );
   const cash = await request('/finance');
   assert.equal(cash.status, 200);

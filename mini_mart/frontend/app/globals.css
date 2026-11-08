@@ -932,6 +932,15 @@ td strong {
 .form-grid .wide {
   grid-column: 1/-1;
 }
+.category-create {
+  margin-bottom: 15px;
+}
+.category-create label {
+  margin-bottom: 7px;
+}
+.category-create .form-row {
+  align-items: center;
+}
 .form-row {
   display: grid;
   grid-template-columns: 2fr 1fr;

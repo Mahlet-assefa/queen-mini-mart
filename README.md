@@ -10,7 +10,7 @@ Queen Mart is a web app for running a small shop's daily inventory, sales, purch
 - **Activity tracker:** Browse sales and stock activity by date.
 - **Accounts:** Sign in with email and password. The initial administrator is set up with a one-time command and must choose a private password at the next sign-in; people who register in the app receive sales accounts.
 
-Administrators can manage the product catalog and see purchase prices, profit reports, the dashboard, and the date tracker. Sales accounts can record sales and stock changes, see the daily cash summary, and create supplier orders.
+Administrators can manage the product catalog and see purchase prices, profit reports, the dashboard, and the date tracker. Admin and sales accounts can add products, create categories from the product form, and record stock changes. Sales accounts can also see the daily cash summary and create supplier orders. Only administrators can edit or delete existing products.
 
 ## Tech stack
 
@@ -49,7 +49,7 @@ npm run dev
 
 Replace the example admin password with a private password of at least 10 characters. Also replace `SESSION_SECRET` in `.env` with a long random value. The `.env` file is ignored by Git.
 
-Open the URL printed by Next.js, usually `http://127.0.0.1:3000`. Sign in using `admin@queenmart.com` and the password you set above. A new database has standard categories and no products; `npm run db:seed` can add sample products for a demo. You can also create a sales account from the sign-in screen.
+Open the URL printed by Next.js, usually `http://127.0.0.1:3000`. Sign in using `admin@queenmart.com` and the password you set above. A new database has no categories or products; create categories while adding products. `npm run db:seed` can add sample categories and products for a demo. You can also create a sales account from the sign-in screen.
 
 ## Useful commands
 

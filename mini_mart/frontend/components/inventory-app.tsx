@@ -107,6 +107,8 @@ export default function InventoryApp() {
     [quantity, setQuantity] = useState('1'),
     [form, setForm] = useState<ProductForm>(blank()),
     [formError, setFormError] = useState(''),
+    [newCategory, setNewCategory] = useState(''),
+    [savingCategory, setSavingCategory] = useState(false),
     [editing, setEditing] = useState<Product | null>(null);
   const [orderItems, setOrderItems] = useState<{ productName: string; quantity: number }[]>([]),
     [orderDate, setOrderDate] = useState(today()),
@@ -243,6 +245,28 @@ export default function InventoryApp() {
       await refresh();
     } catch (e) {
       setFormError((e as Error).message);
+    }
+  }
+  async function createCategory() {
+    if (savingCategory) return;
+    const name = newCategory.trim();
+    if (!name) return setFormError('Enter a category name.');
+    setSavingCategory(true);
+    setFormError('');
+    try {
+      const category = await api<Category>('/categories', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+      setCategories((current) =>
+        [...current, category].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      setForm((current) => ({ ...current, category: category.name }));
+      setNewCategory('');
+    } catch (e) {
+      setFormError((e as Error).message);
+    } finally {
+      setSavingCategory(false);
     }
   }
   async function deleteProduct(p: Product) {
@@ -717,19 +741,18 @@ export default function InventoryApp() {
                   eyebrow="Inventory control"
                   title="Products"
                   action={
-                    user.role === 'admin' ? (
-                      <button
-                        className="primary-button"
-                        onClick={() => {
-                          setEditing(null);
-                          setForm(blank(categories[0]?.name));
-                          setFormError('');
-                          setModal('product');
-                        }}
-                      >
-                        <Plus size={17} /> Add product
-                      </button>
-                    ) : undefined
+                    <button
+                      className="primary-button"
+                      onClick={() => {
+                        setEditing(null);
+                        setForm(blank(categories[0]?.name));
+                        setFormError('');
+                        setNewCategory('');
+                        setModal('product');
+                      }}
+                    >
+                      <Plus size={17} /> Add product
+                    </button>
                   }
                 />
                 <div className="filter-card card">
@@ -817,6 +840,7 @@ export default function InventoryApp() {
                                       minStockLevel: String(p.minStockLevel),
                                     });
                                     setFormError('');
+                                    setNewCategory('');
                                     setModal('product');
                                   }}
                                 >
@@ -965,11 +989,42 @@ export default function InventoryApp() {
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
               >
+                <option value="" disabled>
+                  Choose a category
+                </option>
                 {categories.map((c) => (
-                  <option key={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
                 ))}
               </select>
             </label>
+            <div className="wide category-create">
+              <label htmlFor="new-category">New category</label>
+              <div className="form-row">
+                <input
+                  id="new-category"
+                  value={newCategory}
+                  maxLength={80}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void createCategory();
+                    }
+                  }}
+                  placeholder="Enter category name"
+                />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={savingCategory}
+                  onClick={createCategory}
+                >
+                  {savingCategory ? 'Adding…' : 'Add category'}
+                </button>
+              </div>
+            </div>
             <label>
               Selling price
               <input
@@ -981,19 +1036,17 @@ export default function InventoryApp() {
                 onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })}
               />
             </label>
-            {user.role === 'admin' && (
-              <label>
-                Purchase price
-                <input
-                  type="number"
-                  min="0"
-                  step=".01"
-                  required
-                  value={form.purchasedPrice}
-                  onChange={(e) => setForm({ ...form, purchasedPrice: e.target.value })}
-                />
-              </label>
-            )}
+            <label>
+              Purchase price
+              <input
+                type="number"
+                min="0"
+                step=".01"
+                required
+                value={form.purchasedPrice}
+                onChange={(e) => setForm({ ...form, purchasedPrice: e.target.value })}
+              />
+            </label>
             {!editing && (
               <label>
                 Initial stock
