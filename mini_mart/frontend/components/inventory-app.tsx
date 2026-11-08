@@ -1037,15 +1037,19 @@ export default function InventoryApp() {
               />
             </label>
             <label>
-              Purchase price
+              Purchase price (optional)
               <input
                 type="number"
                 min="0"
                 step=".01"
-                required
                 value={form.purchasedPrice}
                 onChange={(e) => setForm({ ...form, purchasedPrice: e.target.value })}
               />
+              <small className="muted">
+                {editing
+                  ? 'Leave blank to keep the current price.'
+                  : 'Leave blank to use 0 ETB in profit reports.'}
+              </small>
             </label>
             {!editing && (
               <label>

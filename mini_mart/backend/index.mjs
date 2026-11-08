@@ -200,7 +200,10 @@ app.put(
   run(async (req, res) => {
     const current = await prisma.product.findUnique({ where: { id: req.params.id } });
     if (!current) return res.status(404).json({ error: 'Product not found.' });
-    const data = productInput({ ...req.body, stockQuantity: current.stockQuantity });
+    const data = productInput(
+      { ...req.body, stockQuantity: current.stockQuantity },
+      Number(current.purchasedPrice),
+    );
     if (!data) return res.status(400).json({ error: 'Enter valid product details.' });
     const category = await prisma.category.findUnique({ where: { name: data.category } });
     if (!category) return res.status(400).json({ error: 'Choose a category.' });

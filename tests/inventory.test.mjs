@@ -22,6 +22,10 @@ test('email and product input validation', () => {
     minStockLevel: 3,
   });
   assert.equal(productInput({ ...input, stockQuantity: -1 }), null);
+  assert.equal(productInput({ ...input, purchasedPrice: '' })?.purchasedPrice, 0);
+  assert.equal(productInput({ ...input, purchasedPrice: undefined })?.purchasedPrice, 0);
+  assert.equal(productInput({ ...input, purchasedPrice: '' }, 1.2)?.purchasedPrice, 1.2);
+  assert.equal(productInput({ ...input, purchasedPrice: -1 }), null);
   assert.equal(productInput({ ...input, sellingPrice: '' }), null);
   assert.equal(productInput({ ...input, minStockLevel: 1.5 }), null);
 });
