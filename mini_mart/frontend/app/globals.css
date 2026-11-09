@@ -290,6 +290,53 @@ select:focus-visible {
   grid-template-columns: 1fr 1fr;
   gap: 18px;
 }
+.dashboard-attention {
+  margin-top: 18px;
+}
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+.category-create-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.category-create-bar label {
+  font-size: 13px;
+  font-weight: 700;
+}
+.category-create-bar input {
+  border: 1px solid #dce5de;
+  border-radius: 8px;
+  height: 39px;
+  padding: 0 10px;
+  flex: 1;
+  min-width: 170px;
+}
+.category-create-bar .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.category-card {
+  padding: 18px;
+}
+.category-card h2 {
+  font-size: 17px;
+  margin: 12px 0 5px;
+}
+.category-card p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 15px;
+}
+.category-icon {
+  color: var(--green);
+}
 .card-heading {
   display: flex;
   align-items: center;
@@ -547,19 +594,22 @@ td strong {
 .stock-actions button {
   border: 0;
   border-radius: 7px;
-  width: 31px;
+  min-width: 58px;
+  padding: 0 8px;
   height: 31px;
   color: white;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .add-button {
   background: var(--green);
 }
 .minus-button {
   background: var(--red);
-  font-size: 23px;
-  line-height: 0;
 }
 .empty {
   padding: 34px 18px;
@@ -896,7 +946,33 @@ td strong {
   padding: 22px;
 }
 .modal-wide {
-  width: min(100%, 780px);
+  width: min(100%, 1100px);
+}
+.category-manage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.category-manage form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.category-manage label {
+  margin-bottom: 0;
+}
+.category-manage .danger-button {
+  margin-bottom: 0;
+}
+.category-hint {
+  font-size: 12px;
+  margin: 10px 0 15px;
+}
+.category-search {
+  margin: 16px 0;
 }
 .modal-title {
   display: flex;

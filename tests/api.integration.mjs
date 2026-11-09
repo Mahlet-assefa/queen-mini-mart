@@ -33,9 +33,24 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
     (await request('/categories', 'POST', { name: category.toLowerCase() })).status,
     409,
   );
+  const temporaryCategory = await request('/categories', 'POST', {
+    name: `Temporary ${randomUUID().slice(0, 8)}`,
+  });
+  assert.equal(temporaryCategory.status, 201);
+  assert.equal(
+    (
+      await request(`/categories/${temporaryCategory.data.id}`, 'PUT', {
+        name: `Renamed ${randomUUID().slice(0, 8)}`,
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await request(`/categories/${temporaryCategory.data.id}`, 'DELETE')).status, 204);
   const name = `Integration ${randomUUID().slice(0, 8)}`;
+  const itemCode = `TEST-${randomUUID().slice(0, 8).toUpperCase()}`;
   const product = await request('/products', 'POST', {
     name,
+    itemCode: itemCode.toLowerCase(),
     category,
     purchasedPrice: 1,
     sellingPrice: 3,
@@ -43,6 +58,7 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
     minStockLevel: 2,
   });
   assert.equal(product.status, 201);
+  assert.equal(product.data.itemCode, itemCode);
   const id = product.data.id;
   const disposable = await request('/products', 'POST', {
     name: `Disposable ${randomUUID().slice(0, 8)}`,
@@ -53,6 +69,20 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
     minStockLevel: 1,
   });
   assert.equal(disposable.status, 201);
+  assert.equal(
+    (
+      await request('/products', 'POST', {
+        name: 'Duplicate code',
+        itemCode,
+        category,
+        purchasedPrice: 1,
+        sellingPrice: 2,
+        stockQuantity: 1,
+        minStockLevel: 1,
+      })
+    ).status,
+    409,
+  );
   const changed = await request(`/products/${disposable.data.id}`, 'PUT', {
     name: 'Edited product',
     category,
@@ -126,7 +156,8 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   await authenticate(email, 'integration-password-123', 'signup');
   assert.equal((await request('/dashboard')).status, 403);
   const salesCategory = `Sales ${randomUUID().slice(0, 8)}`;
-  assert.equal((await request('/categories', 'POST', { name: salesCategory })).status, 201);
+  const createdSalesCategory = await request('/categories', 'POST', { name: salesCategory });
+  assert.equal(createdSalesCategory.status, 201);
   const salesProduct = await request('/products', 'POST', {
     name: `Sales product ${randomUUID().slice(0, 8)}`,
     category: salesCategory,
@@ -137,7 +168,26 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   });
   assert.equal(salesProduct.status, 201);
   assert.equal(salesProduct.data.purchasedPrice, undefined);
-  assert.equal((await request(`/products/${salesProduct.data.id}`, 'DELETE')).status, 403);
+  const salesEdit = await request(`/products/${salesProduct.data.id}`, 'PUT', {
+    name: 'Sales edited product',
+    itemCode: `SALES-${randomUUID().slice(0, 8)}`,
+    category: salesCategory,
+    purchasedPrice: 999,
+    sellingPrice: 3,
+    minStockLevel: 2,
+  });
+  assert.equal(salesEdit.status, 200);
+  assert.equal(salesEdit.data.itemCode.startsWith('SALES-'), true);
+  assert.equal(salesEdit.data.purchasedPrice, undefined);
+  assert.equal(
+    (await request(`/categories/${createdSalesCategory.data.id}`, 'DELETE')).status,
+    409,
+  );
+  assert.equal((await request(`/products/${salesProduct.data.id}`, 'DELETE')).status, 204);
+  assert.equal(
+    (await request(`/categories/${createdSalesCategory.data.id}`, 'DELETE')).status,
+    204,
+  );
   assert.equal(
     (await request('/products')).data.find((p) => p.id === id).purchasedPrice,
     undefined,
@@ -154,4 +204,6 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
     (await request(`/products/${id}/movement`, 'POST', { type: 'ADD_STOCK', quantity: 2 })).status,
     200,
   );
+  await authenticate('admin@queenmart.com', process.env.TEST_ADMIN_PASSWORD, 'signin');
+  assert.equal((await request('/products')).data.find((p) => p.id === id).itemCode, itemCode);
 });

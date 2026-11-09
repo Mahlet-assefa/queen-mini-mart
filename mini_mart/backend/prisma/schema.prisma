@@ -46,6 +46,7 @@ model Category {
 model Product {
   id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String
+  itemCode       String?           @unique @map("item_code")
   categoryId     String            @map("category_id") @db.Uuid
   category       Category          @relation(fields: [categoryId], references: [id])
   purchasedPrice Decimal           @map("purchased_price") @db.Decimal(12, 2)

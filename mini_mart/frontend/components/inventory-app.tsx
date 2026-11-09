@@ -33,9 +33,10 @@ import {
   User,
 } from '@/lib/inventory';
 
-type Section = 'dashboard' | 'products' | 'finance' | 'orders' | 'tracker';
+type Section = 'dashboard' | 'products' | 'categories' | 'finance' | 'orders' | 'tracker';
 type ProductForm = {
   name: string;
+  itemCode: string;
   category: string;
   purchasedPrice: string;
   sellingPrice: string;
@@ -44,6 +45,7 @@ type ProductForm = {
 };
 const blank = (category = ''): ProductForm => ({
   name: '',
+  itemCode: '',
   category,
   purchasedPrice: '',
   sellingPrice: '',
@@ -90,11 +92,12 @@ export default function InventoryApp() {
     [error, setError] = useState(''),
     [toast, setToast] = useState(''),
     [search, setSearch] = useState(''),
-    [sort, setSort] = useState<'az' | 'za'>('az');
+    [sort, setSort] = useState<'az' | 'za' | 'category'>('az');
   const [modal, setModal] = useState<
       | 'product'
       | 'adjust'
       | 'detail'
+      | 'category'
       | 'order'
       | 'lowOrder'
       | 'productsOrder'
@@ -107,6 +110,10 @@ export default function InventoryApp() {
     [quantity, setQuantity] = useState('1'),
     [form, setForm] = useState<ProductForm>(blank()),
     [formError, setFormError] = useState(''),
+    [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null),
+    [categoryName, setCategoryName] = useState(''),
+    [categorySearch, setCategorySearch] = useState(''),
+    [categoryError, setCategoryError] = useState(''),
     [newCategory, setNewCategory] = useState(''),
     [savingCategory, setSavingCategory] = useState(false),
     [editing, setEditing] = useState<Product | null>(null);
@@ -128,7 +135,7 @@ export default function InventoryApp() {
     api<User>('/auth/me')
       .then((u) => {
         setUser(u);
-        setSection(u.role === 'admin' ? 'dashboard' : 'products');
+        setSection('dashboard');
       })
       .catch(() => {})
       .finally(() => setChecking(false));
@@ -187,7 +194,7 @@ export default function InventoryApp() {
         body: JSON.stringify({ email, password }),
       });
       setUser(u);
-      setSection(u.role === 'admin' ? 'dashboard' : 'products');
+      setSection('dashboard');
       setPassword('');
     } catch (e) {
       setAuthError((e as Error).message);
@@ -227,9 +234,26 @@ export default function InventoryApp() {
   }
   const low = products.filter((p) => p.stockQuantity <= p.minStockLevel);
   const filtered = products
-    .filter((p) => `${p.name} ${p.category}`.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => (sort === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
+    .filter((p) =>
+      `${p.name} ${p.itemCode || ''} ${p.category}`.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a, b) =>
+      sort === 'category'
+        ? a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
+        : sort === 'az'
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name),
+    );
   const sales = transactions.filter((t) => t.type === 'SALE');
+  const salesTop = Object.entries(
+    sales.reduce<Record<string, number>>((counts, sale) => {
+      counts[sale.name] = (counts[sale.name] || 0) + sale.quantity;
+      return counts;
+    }, {}),
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
   const top = (dashboard?.topSold || []).map(({ name, quantity }) => [name, quantity] as const);
   async function saveProduct(e: React.FormEvent) {
     e.preventDefault();
@@ -268,6 +292,55 @@ export default function InventoryApp() {
     } finally {
       setSavingCategory(false);
     }
+  }
+  function openCategory(category: Category) {
+    setSelectedCategoryId(category.id);
+    setCategoryName(category.name);
+    setCategorySearch('');
+    setCategoryError('');
+    setModal('category');
+  }
+  async function renameCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedCategoryId) return;
+    setCategoryError('');
+    try {
+      await api(`/categories/${selectedCategoryId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: categoryName }),
+      });
+      setToast('Category renamed');
+      await refresh();
+    } catch (e) {
+      setCategoryError((e as Error).message);
+    }
+  }
+  async function deleteCategory(category: Category) {
+    if (!window.confirm(`Delete ${category.name}?`)) return;
+    setCategoryError('');
+    try {
+      await api(`/categories/${category.id}`, { method: 'DELETE' });
+      setModal(null);
+      setToast('Category deleted');
+      await refresh();
+    } catch (e) {
+      setCategoryError((e as Error).message);
+    }
+  }
+  function editProduct(p: Product) {
+    setEditing(p);
+    setForm({
+      name: p.name,
+      itemCode: p.itemCode || '',
+      category: p.category,
+      purchasedPrice: user?.role === 'admin' ? String(p.purchasedPrice ?? 0) : '',
+      sellingPrice: String(p.sellingPrice),
+      stockQuantity: String(p.stockQuantity),
+      minStockLevel: String(p.minStockLevel),
+    });
+    setFormError('');
+    setNewCategory('');
+    setModal('product');
   }
   async function deleteProduct(p: Product) {
     if (!window.confirm(`Delete ${p.name}?`)) return;
@@ -539,10 +612,9 @@ export default function InventoryApp() {
       </main>
     );
   const nav: { id: Section; label: string; icon: typeof Package }[] = [
-    ...(user.role === 'admin'
-      ? [{ id: 'dashboard' as Section, label: 'Dashboard', icon: LayoutDashboard }]
-      : []),
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'products', label: 'Products', icon: Package },
+    { id: 'categories', label: 'Categories', icon: Boxes },
     { id: 'finance', label: user.role === 'admin' ? 'Finance' : 'Daily cash', icon: TrendingUp },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     ...(user.role === 'admin'
@@ -735,6 +807,153 @@ export default function InventoryApp() {
                 </div>
               </>
             )}
+            {section === 'dashboard' && user.role === 'sales' && (
+              <>
+                <Header eyebrow="Store overview" title="Dashboard" />
+                <div className="metrics">
+                  {[
+                    {
+                      label: 'Products',
+                      value: products.length,
+                      icon: Package,
+                      section: 'products' as Section,
+                    },
+                    {
+                      label: 'Items in stock',
+                      value: products.reduce((sum, p) => sum + p.stockQuantity, 0),
+                      icon: Boxes,
+                      section: 'products' as Section,
+                    },
+                    {
+                      label: 'Categories',
+                      value: categories.length,
+                      icon: Boxes,
+                      section: 'categories' as Section,
+                    },
+                    {
+                      label: 'Low stock items',
+                      value: low.length,
+                      icon: AlertTriangle,
+                      section: 'products' as Section,
+                    },
+                    {
+                      label: 'Items sold today',
+                      value: sales.reduce((sum, t) => sum + t.quantity, 0),
+                      icon: ShoppingCart,
+                      section: 'products' as Section,
+                    },
+                  ].map((metric) => (
+                    <button
+                      className="metric card"
+                      key={metric.label}
+                      onClick={() => setSection(metric.section)}
+                    >
+                      <span className="metric-icon blue">
+                        <metric.icon size={20} />
+                      </span>
+                      <span className="metric-label">{metric.label}</span>
+                      <strong>{metric.value}</strong>
+                      <small>
+                        View details <ChevronRight size={14} />
+                      </small>
+                    </button>
+                  ))}
+                </div>
+                <div className="dashboard-grid dashboard-attention">
+                  <section className="card">
+                    <div className="card-heading">
+                      <h2>Top selling items</h2>
+                      <span className="muted">Today</span>
+                    </div>
+                    {salesTop.length ? (
+                      <ol className="rank-list">
+                        {salesTop.map(([name, count], i) => (
+                          <li key={name}>
+                            <span className="rank">{String(i + 1).padStart(2, '0')}</span>
+                            <strong>{name}</strong>
+                            <span>{count} sold</span>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <Empty text="Sales will appear here once recorded." />
+                    )}
+                  </section>
+                  <section className="card">
+                    <div className="card-heading">
+                      <h2>Needs attention</h2>
+                      <button className="text-button" onClick={() => setSection('categories')}>
+                        Browse categories
+                      </button>
+                    </div>
+                    {low.length ? (
+                      <ul className="attention-list">
+                        {low.slice(0, 5).map((p) => (
+                          <li key={p.id}>
+                            <span className="attention-dot" />
+                            <strong>{p.name}</strong>
+                            <span>{p.stockQuantity} left</span>
+                            <button
+                              className="small-button"
+                              onClick={() => openAdjust(p, 'ADD_STOCK')}
+                            >
+                              Add stock
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <Empty text="All products are above their stock threshold." />
+                    )}
+                  </section>
+                </div>
+              </>
+            )}
+            {section === 'categories' && (
+              <>
+                <Header eyebrow="Inventory control" title="Categories" />
+                <form
+                  className="card category-create-bar"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void createCategory();
+                  }}
+                >
+                  <label htmlFor="new-category-page">New category</label>
+                  <input
+                    id="new-category-page"
+                    value={newCategory}
+                    maxLength={80}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    placeholder="Category name"
+                  />
+                  <button className="primary-button" disabled={savingCategory}>
+                    <Plus size={16} /> Add category
+                  </button>
+                  {formError && <p className="error">{formError}</p>}
+                </form>
+                <div className="category-grid">
+                  {categories.map((category) => (
+                    <article className="card category-card" key={category.id}>
+                      <span className="category-icon">
+                        <Boxes size={20} />
+                      </span>
+                      <h2>{category.name}</h2>
+                      <p>
+                        {category.productCount}{' '}
+                        {category.productCount === 1 ? 'product' : 'products'}
+                      </p>
+                      <button className="secondary-button" onClick={() => openCategory(category)}>
+                        View details <ChevronRight size={16} />
+                      </button>
+                    </article>
+                  ))}
+                </div>
+                {!categories.length && (
+                  <Empty text="No categories yet. Add one while creating a product." />
+                )}
+              </>
+            )}
             {section === 'products' && (
               <>
                 <Header
@@ -762,7 +981,7 @@ export default function InventoryApp() {
                       ref={searchRef}
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search products or categories"
+                      placeholder="Search name, item code, or category"
                       aria-label="Search products"
                     />
                     <kbd>⌘ K</kbd>
@@ -770,95 +989,21 @@ export default function InventoryApp() {
                   <select
                     aria-label="Sort products"
                     value={sort}
-                    onChange={(e) => setSort(e.target.value as 'az' | 'za')}
+                    onChange={(e) => setSort(e.target.value as 'az' | 'za' | 'category')}
                   >
                     <option value="az">Name: A–Z</option>
                     <option value="za">Name: Z–A</option>
+                    <option value="category">Category: A–Z</option>
                   </select>
                 </div>
                 <section className="card table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Product</th>
-                        <th>Category</th>
-                        <th>Stock</th>
-                        <th>Selling price</th>
-                        {user.role === 'admin' && <th>Purchase price</th>}
-                        <th>Stock actions</th>
-                        {user.role === 'admin' && <th>Manage</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((p) => (
-                        <tr key={p.id}>
-                          <td>
-                            <strong>{p.name}</strong>
-                          </td>
-                          <td>{p.category}</td>
-                          <td>
-                            <span
-                              className={`badge ${p.stockQuantity <= p.minStockLevel ? 'danger' : 'success'}`}
-                            >
-                              {p.stockQuantity} in stock
-                            </span>
-                          </td>
-                          <td>{money(p.sellingPrice)}</td>
-                          {user.role === 'admin' && <td>{money(p.purchasedPrice || 0)}</td>}
-                          <td>
-                            <div className="stock-actions">
-                              <button
-                                className="add-button"
-                                onClick={() => openAdjust(p, 'ADD_STOCK')}
-                                aria-label={`Add stock for ${p.name}`}
-                              >
-                                <Plus size={20} />
-                              </button>
-                              <button
-                                className="minus-button"
-                                disabled={!p.stockQuantity}
-                                onClick={() => openAdjust(p, 'SALE')}
-                                aria-label={`Record sale of ${p.name}`}
-                              >
-                                <span>−</span>
-                              </button>
-                            </div>
-                          </td>
-                          {user.role === 'admin' && (
-                            <td>
-                              <div className="manage-actions">
-                                <button
-                                  aria-label={`Edit ${p.name}`}
-                                  onClick={() => {
-                                    setEditing(p);
-                                    setForm({
-                                      name: p.name,
-                                      category: p.category,
-                                      purchasedPrice: String(p.purchasedPrice || 0),
-                                      sellingPrice: String(p.sellingPrice),
-                                      stockQuantity: String(p.stockQuantity),
-                                      minStockLevel: String(p.minStockLevel),
-                                    });
-                                    setFormError('');
-                                    setNewCategory('');
-                                    setModal('product');
-                                  }}
-                                >
-                                  <Pencil size={16} />
-                                </button>
-                                <button
-                                  aria-label={`Delete ${p.name}`}
-                                  onClick={() => deleteProduct(p)}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <ProductTable
+                    products={filtered}
+                    role={user.role}
+                    onAdjust={openAdjust}
+                    onEdit={editProduct}
+                    onDelete={deleteProduct}
+                  />
                   {!filtered.length && (
                     <Empty
                       text={
@@ -970,6 +1115,60 @@ export default function InventoryApp() {
           {toast}
         </div>
       )}
+      {modal === 'category' && selectedCategory && (
+        <Modal title={selectedCategory.name} close={() => setModal(null)} wide>
+          <div className="category-manage">
+            <form onSubmit={renameCategory}>
+              <label>
+                Category name
+                <input
+                  required
+                  maxLength={80}
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                />
+              </label>
+              <button className="secondary-button">Save name</button>
+            </form>
+            <button
+              className="danger-button"
+              disabled={selectedCategory.productCount > 0}
+              onClick={() => deleteCategory(selectedCategory)}
+            >
+              <Trash2 size={16} /> Delete category
+            </button>
+          </div>
+          {selectedCategory.productCount > 0 && (
+            <p className="muted category-hint">
+              Move or delete all products before deleting this category.
+            </p>
+          )}
+          {categoryError && <p className="error">{categoryError}</p>}
+          <label className="search-field category-search">
+            <Search size={17} />
+            <input
+              value={categorySearch}
+              onChange={(e) => setCategorySearch(e.target.value)}
+              placeholder="Search products or item codes"
+            />
+          </label>
+          <div className="table-scroll">
+            <ProductTable
+              products={products.filter(
+                (p) =>
+                  p.category === selectedCategory.name &&
+                  `${p.name} ${p.itemCode || ''}`
+                    .toLowerCase()
+                    .includes(categorySearch.toLowerCase()),
+              )}
+              role={user.role}
+              onAdjust={openAdjust}
+              onEdit={editProduct}
+              onDelete={deleteProduct}
+            />
+          </div>
+        </Modal>
+      )}
       {modal === 'product' && (
         <Modal title={editing ? 'Edit product' : 'Add product'} close={() => setModal(null)}>
           <form onSubmit={saveProduct} className="form-grid">
@@ -980,6 +1179,15 @@ export default function InventoryApp() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label>
+              Item code (optional)
+              <input
+                value={form.itemCode}
+                maxLength={64}
+                onChange={(e) => setForm({ ...form, itemCode: e.target.value })}
+                placeholder="e.g. CHOC-001"
               />
             </label>
             <label>
@@ -1036,21 +1244,23 @@ export default function InventoryApp() {
                 onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })}
               />
             </label>
-            <label>
-              Purchase price (optional)
-              <input
-                type="number"
-                min="0"
-                step=".01"
-                value={form.purchasedPrice}
-                onChange={(e) => setForm({ ...form, purchasedPrice: e.target.value })}
-              />
-              <small className="muted">
-                {editing
-                  ? 'Leave blank to keep the current price.'
-                  : 'Leave blank to use 0 ETB in profit reports.'}
-              </small>
-            </label>
+            {(!editing || user.role === 'admin') && (
+              <label>
+                Purchase price (optional)
+                <input
+                  type="number"
+                  min="0"
+                  step=".01"
+                  value={form.purchasedPrice}
+                  onChange={(e) => setForm({ ...form, purchasedPrice: e.target.value })}
+                />
+                <small className="muted">
+                  {editing
+                    ? 'Leave blank to keep the current price.'
+                    : 'Leave blank to use 0 ETB in profit reports.'}
+                </small>
+              </label>
+            )}
             {!editing && (
               <label>
                 Initial stock
@@ -1388,6 +1598,85 @@ function Header({
 }
 function Empty({ text }: { text: string }) {
   return <div className="empty">{text}</div>;
+}
+function ProductTable({
+  products,
+  role,
+  onAdjust,
+  onEdit,
+  onDelete,
+}: {
+  products: Product[];
+  role: User['role'];
+  onAdjust: (product: Product, type: 'SALE' | 'ADD_STOCK') => void;
+  onEdit: (product: Product) => void;
+  onDelete: (product: Product) => void;
+}) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Item code</th>
+          <th>Category</th>
+          <th>Stock</th>
+          <th>Selling price</th>
+          {role === 'admin' && <th>Purchase price</th>}
+          <th>Stock actions</th>
+          <th>Manage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {products.map((p) => (
+          <tr key={p.id}>
+            <td>
+              <strong>{p.name}</strong>
+            </td>
+            <td>{p.itemCode || '—'}</td>
+            <td>{p.category}</td>
+            <td>
+              <span
+                className={`badge ${p.stockQuantity <= p.minStockLevel ? 'danger' : 'success'}`}
+              >
+                {p.stockQuantity} in stock
+              </span>
+            </td>
+            <td>{money(p.sellingPrice)}</td>
+            {role === 'admin' && <td>{money(p.purchasedPrice || 0)}</td>}
+            <td>
+              <div className="stock-actions">
+                <button
+                  className="add-button"
+                  onClick={() => onAdjust(p, 'ADD_STOCK')}
+                  aria-label={`Add stock for ${p.name}`}
+                >
+                  <Plus size={15} /> Add
+                </button>
+                <button
+                  className="minus-button"
+                  disabled={!p.stockQuantity}
+                  onClick={() => onAdjust(p, 'SALE')}
+                  aria-label={`Record sale of ${p.name}`}
+                >
+                  − Sell
+                </button>
+              </div>
+            </td>
+            <td>
+              <div className="manage-actions">
+                <button aria-label={`Edit ${p.name}`} onClick={() => onEdit(p)}>
+                  <Pencil size={16} />
+                </button>
+                <button aria-label={`Delete ${p.name}`} onClick={() => onDelete(p)}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 function Modal({
   title,

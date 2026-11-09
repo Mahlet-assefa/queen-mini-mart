@@ -8,6 +8,7 @@ export type Category = { id: string; name: string; productCount: number };
 export type Product = {
   id: string;
   name: string;
+  itemCode: string | null;
   category: string;
   sellingPrice: number;
   purchasedPrice?: number;

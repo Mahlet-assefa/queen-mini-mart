@@ -28,6 +28,7 @@ const storeDayStart = () => {
 const publicProduct = (p, role) => ({
   id: p.id,
   name: p.name,
+  itemCode: p.itemCode,
   category: p.category.name,
   sellingPrice: Number(p.sellingPrice),
   ...(role === 'admin' ? { purchasedPrice: Number(p.purchasedPrice) } : {}),
@@ -163,6 +164,38 @@ app.post(
     res.status(201).json({ id: c.id, name: c.name, productCount: 0 });
   }),
 );
+app.put(
+  '/api/categories/:id',
+  run(async (req, res) => {
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    if (!name || name.length > 80)
+      return res.status(400).json({ error: 'Enter a category name of up to 80 characters.' });
+    const current = await prisma.category.findUnique({ where: { id: req.params.id } });
+    if (!current) return res.status(404).json({ error: 'Category not found.' });
+    const duplicate = await prisma.category.findFirst({
+      where: { id: { not: current.id }, name: { equals: name, mode: 'insensitive' } },
+    });
+    if (duplicate) return res.status(409).json({ error: 'That category already exists.' });
+    await prisma.category.update({ where: { id: current.id }, data: { name } });
+    res.json({ id: current.id, name });
+  }),
+);
+app.delete(
+  '/api/categories/:id',
+  run(async (req, res) => {
+    const category = await prisma.category.findUnique({
+      where: { id: req.params.id },
+      include: { _count: { select: { products: true } } },
+    });
+    if (!category) return res.status(404).json({ error: 'Category not found.' });
+    if (category._count.products)
+      return res
+        .status(409)
+        .json({ error: 'Move or delete its products before deleting this category.' });
+    await prisma.category.delete({ where: { id: category.id } });
+    res.status(204).end();
+  }),
+);
 app.get(
   '/api/products',
   run(async (req, res) => {
@@ -183,6 +216,7 @@ app.post(
     const p = await prisma.product.create({
       data: {
         name: data.name,
+        itemCode: data.itemCode,
         categoryId: category.id,
         purchasedPrice: data.purchasedPrice,
         sellingPrice: data.sellingPrice,
@@ -196,7 +230,6 @@ app.post(
 );
 app.put(
   '/api/products/:id',
-  admin,
   run(async (req, res) => {
     const current = await prisma.product.findUnique({ where: { id: req.params.id } });
     if (!current) return res.status(404).json({ error: 'Product not found.' });
@@ -211,19 +244,19 @@ app.put(
       where: { id: current.id },
       data: {
         name: data.name,
+        itemCode: data.itemCode,
         categoryId: category.id,
-        purchasedPrice: data.purchasedPrice,
+        ...(req.user.role === 'admin' ? { purchasedPrice: data.purchasedPrice } : {}),
         sellingPrice: data.sellingPrice,
         minStockLevel: data.minStockLevel,
       },
       include: { category: true },
     });
-    res.json(publicProduct(p, 'admin'));
+    res.json(publicProduct(p, req.user.role));
   }),
 );
 app.delete(
   '/api/products/:id',
-  admin,
   run(async (req, res) => {
     const result = await prisma.product.deleteMany({ where: { id: req.params.id } });
     res.status(result.count ? 204 : 404).end();

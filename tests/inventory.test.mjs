@@ -15,6 +15,7 @@ test('email and product input validation', () => {
   };
   assert.deepEqual(productInput(input), {
     name: 'Milk',
+    itemCode: null,
     category: 'Dairy',
     purchasedPrice: 1.2,
     sellingPrice: 2.5,
@@ -26,6 +27,8 @@ test('email and product input validation', () => {
   assert.equal(productInput({ ...input, purchasedPrice: undefined })?.purchasedPrice, 0);
   assert.equal(productInput({ ...input, purchasedPrice: '' }, 1.2)?.purchasedPrice, 1.2);
   assert.equal(productInput({ ...input, purchasedPrice: -1 }), null);
+  assert.equal(productInput({ ...input, itemCode: ' milk-01 ' })?.itemCode, 'MILK-01');
+  assert.equal(productInput({ ...input, itemCode: 'x'.repeat(65) }), null);
   assert.equal(productInput({ ...input, sellingPrice: '' }), null);
   assert.equal(productInput({ ...input, minStockLevel: 1.5 }), null);
 });
