@@ -61,12 +61,14 @@ model Product {
 }
 
 model Transaction {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type        TransactionType
-  totalAmount Decimal           @map("total_amount") @db.Decimal(12, 2)
-  totalCost   Decimal           @map("total_cost") @db.Decimal(12, 2)
-  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz
-  items       TransactionItem[]
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type         TransactionType
+  totalAmount  Decimal           @map("total_amount") @db.Decimal(12, 2)
+  totalCost    Decimal           @map("total_cost") @db.Decimal(12, 2)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  reversedAt   DateTime?         @map("reversed_at") @db.Timestamptz
+  reversedById String?           @map("reversed_by_id") @db.Uuid
+  items        TransactionItem[]
 
   @@map("qm_transactions")
 }

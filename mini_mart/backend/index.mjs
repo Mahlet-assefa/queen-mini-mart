@@ -310,7 +310,10 @@ app.get(
   run(async (req, res) => {
     // ponytail: loads full history for calendar and details; add date-range pagination when transaction volume grows.
     const rows = await prisma.transaction.findMany({
-      where: req.user.role === 'sales' ? { type: 'SALE', createdAt: { gte: storeDayStart() } } : {},
+      where:
+        req.user.role === 'sales'
+          ? { type: 'SALE', reversedAt: null, createdAt: { gte: storeDayStart() } }
+          : {},
       include: { items: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -318,7 +321,11 @@ app.get(
       rows.flatMap((t) =>
         t.items.map((i) => ({
           id: i.id,
+          transactionId: t.id,
           date: t.createdAt,
+          ...(req.user.role === 'admin'
+            ? { reversedAt: t.reversedAt, reversedById: t.reversedById }
+            : {}),
           type: t.type,
           quantity: i.quantity,
           unitPrice: Number(i.unitPrice),
@@ -329,13 +336,55 @@ app.get(
     );
   }),
 );
+app.post(
+  '/api/transactions/:id/reverse',
+  admin,
+  run(async (req, res) => {
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const entry = await tx.transaction.findUnique({
+          where: { id: req.params.id },
+          include: { items: true },
+        });
+        if (!entry) return { error: 'Entry not found.', status: 404 };
+        const reversedAt = new Date();
+        const marked = await tx.transaction.updateMany({
+          where: { id: entry.id, reversedAt: null },
+          data: { reversedAt, reversedById: req.user.id },
+        });
+        if (!marked.count) return { error: 'This entry was already reversed.', status: 409 };
+        for (const item of entry.items) {
+          const changed = await tx.product.updateMany({
+            where: {
+              id: item.productId,
+              ...(entry.type === 'ADD_STOCK' ? { stockQuantity: { gte: item.quantity } } : {}),
+            },
+            data: {
+              stockQuantity: {
+                [entry.type === 'SALE' ? 'increment' : 'decrement']: item.quantity,
+              },
+            },
+          });
+          if (!changed.count) throw new Error('NOT_ENOUGH_STOCK_TO_REVERSE');
+        }
+        return { reversedAt, reversedById: req.user.id };
+      });
+      if (result.error) return res.status(result.status).json({ error: result.error });
+      res.json(result);
+    } catch (error) {
+      if (error.message === 'NOT_ENOUGH_STOCK_TO_REVERSE')
+        return res.status(409).json({ error: 'Not enough stock to reverse this addition.' });
+      throw error;
+    }
+  }),
+);
 app.get(
   '/api/dashboard',
   admin,
   run(async (req, res) => {
     const [sales, products, categories] = await Promise.all([
       prisma.transaction.findMany({
-        where: { type: 'SALE' },
+        where: { type: 'SALE', reversedAt: null },
         include: { items: { include: { product: true } } },
       }),
       prisma.product.findMany({ select: { stockQuantity: true, minStockLevel: true } }),
@@ -364,7 +413,7 @@ app.get(
   run(async (req, res) => {
     if (req.user.role === 'sales') {
       const sales = await prisma.transaction.aggregate({
-        where: { type: 'SALE', createdAt: { gte: storeDayStart() } },
+        where: { type: 'SALE', reversedAt: null, createdAt: { gte: storeDayStart() } },
         _sum: { totalAmount: true },
       });
       return res.json([
@@ -389,7 +438,7 @@ app.get(
     buckets AS (SELECT generate_series(start_at,start_at + interval '${count} ${step}',interval '1 ${step}')::date AS date FROM first_day)
     SELECT b.date,COALESCE(SUM(t.total_amount),0)::float8 AS revenue,
       COALESCE(SUM(t.total_amount-t.total_cost),0)::float8 AS profit
-    FROM buckets b LEFT JOIN qm_transactions t ON t.type='SALE'
+    FROM buckets b LEFT JOIN qm_transactions t ON t.type='SALE' AND t.reversed_at IS NULL
       AND date_trunc('${bucket}',t.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date=b.date
     GROUP BY b.date ORDER BY b.date`);
     res.json(rows);

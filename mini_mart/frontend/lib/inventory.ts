@@ -17,7 +17,10 @@ export type Product = {
 };
 export type Transaction = {
   id: string;
+  transactionId: string;
   date: string;
+  reversedAt?: string | null;
+  reversedById?: string | null;
   type: 'ADD_STOCK' | 'SALE';
   quantity: number;
   unitPrice: number;

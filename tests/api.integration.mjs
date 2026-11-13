@@ -131,6 +131,99 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
     assert.equal(finance.data.reduce((sum, row) => sum + row.revenue, 0) >= 12, true);
     assert.equal(finance.data.reduce((sum, row) => sum + row.profit, 0) >= 8, true);
   }
+  const correctionName = `Correction ${randomUUID().slice(0, 8)}`;
+  const correction = await request('/products', 'POST', {
+    name: correctionName,
+    category,
+    purchasedPrice: 2,
+    sellingPrice: 7,
+    stockQuantity: 5,
+    minStockLevel: 1,
+  });
+  assert.equal(correction.status, 201);
+  const correctionPath = `/products/${correction.data.id}`;
+  assert.equal(
+    (await request(`${correctionPath}/movement`, 'POST', { type: 'ADD_STOCK', quantity: 3 }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await request(`${correctionPath}/movement`, 'POST', { type: 'SALE', quantity: 2 })).status,
+    200,
+  );
+  const correctionEntries = (await request('/transactions')).data.filter(
+    (t) => t.name === correctionName,
+  );
+  const addedEntry = correctionEntries.find((t) => t.type === 'ADD_STOCK');
+  const soldEntry = correctionEntries.find((t) => t.type === 'SALE');
+  const financeBefore = (await request('/finance?period=day')).data[0];
+  const dashboardBefore = (await request('/dashboard')).data;
+  assert.equal(
+    (await request(`/transactions/${soldEntry.transactionId}/reverse`, 'POST')).status,
+    200,
+  );
+  assert.equal(
+    (await request(`${correctionPath}/movement`, 'POST', { type: 'SALE', quantity: 9 })).status,
+    409,
+  );
+  assert.equal(
+    (await request('/products')).data.find((p) => p.id === correction.data.id).stockQuantity,
+    8,
+  );
+  assert.equal((await request('/finance?period=day')).data[0].revenue, financeBefore.revenue - 14);
+  assert.equal((await request('/finance?period=day')).data[0].profit, financeBefore.profit - 10);
+  assert.equal((await request('/dashboard')).data.soldItems, dashboardBefore.soldItems - 2);
+  assert.equal(
+    (await request(`/transactions/${soldEntry.transactionId}/reverse`, 'POST')).status,
+    409,
+  );
+  assert.ok((await request('/transactions')).data.find((t) => t.id === soldEntry.id).reversedAt);
+  assert.equal(
+    (await request(`/transactions/${addedEntry.transactionId}/reverse`, 'POST')).status,
+    200,
+  );
+  assert.equal(
+    (await request('/products')).data.find((p) => p.id === correction.data.id).stockQuantity,
+    5,
+  );
+  assert.equal(
+    (await request(`/transactions/${addedEntry.transactionId}/reverse`, 'POST')).status,
+    409,
+  );
+  assert.equal(
+    (await request(`${correctionPath}/movement`, 'POST', { type: 'ADD_STOCK', quantity: 2 }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await request(`${correctionPath}/movement`, 'POST', { type: 'SALE', quantity: 7 })).status,
+    200,
+  );
+  const laterEntries = (await request('/transactions')).data.filter(
+    (t) => t.name === correctionName && !t.reversedAt,
+  );
+  const laterAdd = laterEntries.find((t) => t.type === 'ADD_STOCK');
+  const laterSale = laterEntries.find((t) => t.type === 'SALE');
+  assert.equal(
+    (await request(`/transactions/${laterAdd.transactionId}/reverse`, 'POST')).status,
+    409,
+  );
+  assert.equal(
+    (await request('/products')).data.find((p) => p.id === correction.data.id).stockQuantity,
+    0,
+  );
+  assert.equal(
+    (await request(`/transactions/${laterSale.transactionId}/reverse`, 'POST')).status,
+    200,
+  );
+  assert.equal(
+    (await request(`/transactions/${laterAdd.transactionId}/reverse`, 'POST')).status,
+    200,
+  );
+  assert.equal(
+    (await request('/products')).data.find((p) => p.id === correction.data.id).stockQuantity,
+    5,
+  );
   const order = await request('/orders', 'POST', {
     date: new Date().toISOString().slice(0, 10),
     items: [{ productName: name, quantity: 5 }],
@@ -155,6 +248,10 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   const email = `test-${randomUUID()}@example.com`;
   await authenticate(email, 'integration-password-123', 'signup');
   assert.equal((await request('/dashboard')).status, 403);
+  assert.equal(
+    (await request(`/transactions/${soldEntry.transactionId}/reverse`, 'POST')).status,
+    403,
+  );
   const salesCategory = `Sales ${randomUUID().slice(0, 8)}`;
   const createdSalesCategory = await request('/categories', 'POST', { name: salesCategory });
   assert.equal(createdSalesCategory.status, 201);

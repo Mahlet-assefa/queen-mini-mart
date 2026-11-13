@@ -130,6 +130,7 @@ export default function InventoryApp() {
   const [view, setView] = useState<'day' | 'week' | 'month' | 'year'>('month'),
     [cursor, setCursor] = useState(new Date()),
     [selectedDate, setSelectedDate] = useState(today());
+  const [reversingId, setReversingId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     api<User>('/auth/me')
@@ -244,7 +245,7 @@ export default function InventoryApp() {
           ? a.name.localeCompare(b.name)
           : b.name.localeCompare(a.name),
     );
-  const sales = transactions.filter((t) => t.type === 'SALE');
+  const sales = transactions.filter((t) => t.type === 'SALE' && !t.reversedAt);
   const salesTop = Object.entries(
     sales.reduce<Record<string, number>>((counts, sale) => {
       counts[sale.name] = (counts[sale.name] || 0) + sale.quantity;
@@ -371,6 +372,29 @@ export default function InventoryApp() {
       await refresh();
     } catch (e) {
       setFormError((e as Error).message);
+    }
+  }
+  async function reverseEntry(entry: Transaction) {
+    const action = entry.type === 'SALE' ? 'sale' : 'stock addition';
+    const amount = money(
+      entry.quantity * (entry.type === 'SALE' ? entry.unitPrice : entry.unitCost || 0),
+    );
+    if (
+      !window.confirm(
+        `Reverse this ${action}?\n\n${entry.name} · ${entry.quantity} units · ${amount}\n\nThis will update stock and reports.`,
+      )
+    )
+      return;
+    setFormError('');
+    setReversingId(entry.transactionId);
+    try {
+      await api(`/transactions/${entry.transactionId}/reverse`, { method: 'POST' });
+      await refresh();
+      setToast('Entry reversed');
+    } catch (error) {
+      setFormError((error as Error).message);
+    } finally {
+      setReversingId(null);
     }
   }
   function addOrderItem() {
@@ -1098,6 +1122,7 @@ export default function InventoryApp() {
                   transactions={transactions}
                   onSelect={(d) => {
                     setSelectedDate(d);
+                    setFormError('');
                     setModal('day');
                   }}
                   onMonth={(d) => {
@@ -1571,7 +1596,12 @@ export default function InventoryApp() {
           close={() => setModal(null)}
           wide
         >
-          <DayDetails rows={transactions.filter((t) => dateKey(t.date) === selectedDate)} />
+          <DayDetails
+            rows={transactions.filter((t) => dateKey(t.date) === selectedDate)}
+            onReverse={reverseEntry}
+            reversingId={reversingId}
+            error={formError}
+          />
         </Modal>
       )}
     </div>
@@ -1884,6 +1914,7 @@ function Calendar({
               {
                 transactions.filter(
                   (t) =>
+                    !t.reversedAt &&
                     new Date(t.date).getFullYear() === d.getFullYear() &&
                     new Date(t.date).getMonth() === d.getMonth(),
                 ).length
@@ -1921,7 +1952,7 @@ function Calendar({
         ))}
       {dates.map((d) => {
         const key = dateKey(d),
-          events = transactions.filter((t) => dateKey(t.date) === key);
+          events = transactions.filter((t) => dateKey(t.date) === key && !t.reversedAt);
         return (
           <button
             key={key}
@@ -1941,9 +1972,19 @@ function Calendar({
     </div>
   );
 }
-function DayDetails({ rows }: { rows: Transaction[] }) {
-  const added = rows.filter((t) => t.type === 'ADD_STOCK'),
-    sold = rows.filter((t) => t.type === 'SALE');
+function DayDetails({
+  rows,
+  onReverse,
+  reversingId,
+  error,
+}: {
+  rows: Transaction[];
+  onReverse: (entry: Transaction) => void;
+  reversingId: string | null;
+  error: string;
+}) {
+  const added = rows.filter((t) => t.type === 'ADD_STOCK' && !t.reversedAt),
+    sold = rows.filter((t) => t.type === 'SALE' && !t.reversedAt);
   return (
     <>
       <div className="day-totals">
@@ -1957,27 +1998,57 @@ function DayDetails({ rows }: { rows: Transaction[] }) {
           <strong>{money(sold.reduce((a, t) => a + t.quantity * t.unitPrice, 0))}</strong> revenue
         </span>
       </div>
+      {error && <p className="error">{error}</p>}
       <div className="table-scroll">
         <table>
           <thead>
             <tr>
+              <th>Time</th>
               <th>Activity</th>
               <th>Item</th>
               <th>Quantity</th>
               <th>Amount</th>
+              <th>Correction</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((t) => (
               <tr key={t.id}>
                 <td>
-                  <span className={`badge ${t.type === 'SALE' ? 'danger' : 'success'}`}>
-                    {t.type === 'SALE' ? 'Sold' : 'Added'}
+                  {new Date(t.date).toLocaleTimeString('en-US', {
+                    timeZone: 'Africa/Addis_Ababa',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </td>
+                <td>
+                  <span
+                    className={`badge ${t.reversedAt ? '' : t.type === 'SALE' ? 'danger' : 'success'}`}
+                  >
+                    {t.reversedAt ? 'Reversed' : t.type === 'SALE' ? 'Sold' : 'Added'}
                   </span>
                 </td>
                 <td>{t.name}</td>
                 <td>{t.quantity}</td>
                 <td>{money(t.quantity * (t.type === 'SALE' ? t.unitPrice : t.unitCost || 0))}</td>
+                <td>
+                  {t.reversedAt ? (
+                    <small>
+                      Reversed{' '}
+                      {new Date(t.reversedAt).toLocaleString('en-US', {
+                        timeZone: 'Africa/Addis_Ababa',
+                      })}
+                    </small>
+                  ) : (
+                    <button
+                      className="small-button"
+                      disabled={reversingId !== null}
+                      onClick={() => onReverse(t)}
+                    >
+                      {reversingId === t.transactionId ? 'Reversing…' : 'Reverse entry'}
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
