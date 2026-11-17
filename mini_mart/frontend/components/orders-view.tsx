@@ -1,5 +1,20 @@
-import { Download, Plus, Trash2 } from 'lucide-react';
+import { Download, Plus, Send, Trash2 } from 'lucide-react';
 import { Order, Product } from '@/lib/inventory';
+
+function shareOrder(order: Order) {
+  const message = [
+    `Supplier order #${order.id.slice(0, 8)}`,
+    `Date: ${order.date.slice(0, 10)}`,
+    '',
+    ...order.items.map((item) => `${item.productName} × ${item.quantity}`),
+    '',
+    `Total: ${order.totalItems} units`,
+  ].join('\n');
+  const url = new URL('https://t.me/share/url');
+  url.searchParams.set('url', window.location.origin);
+  url.searchParams.set('text', message);
+  window.open(url.toString(), '_blank', 'noopener,noreferrer');
+}
 
 export default function OrdersView({
   orders,
@@ -57,6 +72,7 @@ export default function OrdersView({
               <th>Date</th>
               <th>Items</th>
               <th>Quantity</th>
+              <th>Share</th>
             </tr>
           </thead>
           <tbody>
@@ -70,6 +86,11 @@ export default function OrdersView({
                   {order.items.map((item) => `${item.productName} × ${item.quantity}`).join(', ')}
                 </td>
                 <td>{order.totalItems}</td>
+                <td>
+                  <button className="small-button order-share-button" onClick={() => shareOrder(order)}>
+                    <Send size={14} /> Share on Telegram
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

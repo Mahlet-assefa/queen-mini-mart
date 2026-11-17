@@ -213,17 +213,37 @@ app.post(
     if (!data) return res.status(400).json({ error: 'Enter valid product details.' });
     const category = await prisma.category.findUnique({ where: { name: data.category } });
     if (!category) return res.status(400).json({ error: 'Choose a category.' });
-    const p = await prisma.product.create({
-      data: {
-        name: data.name,
-        itemCode: data.itemCode,
-        categoryId: category.id,
-        purchasedPrice: data.purchasedPrice,
-        sellingPrice: data.sellingPrice,
-        stockQuantity: data.stockQuantity,
-        minStockLevel: data.minStockLevel,
-      },
-      include: { category: true },
+    const p = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          name: data.name,
+          itemCode: data.itemCode,
+          categoryId: category.id,
+          purchasedPrice: data.purchasedPrice,
+          sellingPrice: data.sellingPrice,
+          stockQuantity: data.stockQuantity,
+          minStockLevel: data.minStockLevel,
+        },
+        include: { category: true },
+      });
+      if (data.stockQuantity > 0)
+        await tx.transaction.create({
+          data: {
+            type: 'ADD_STOCK',
+            createdAt: product.createdAt,
+            totalAmount: 0,
+            totalCost: Number(product.purchasedPrice) * data.stockQuantity,
+            items: {
+              create: {
+                productId: product.id,
+                quantity: data.stockQuantity,
+                unitPrice: product.sellingPrice,
+                unitCost: product.purchasedPrice,
+              },
+            },
+          },
+        });
+      return product;
     });
     res.status(201).json(publicProduct(p, req.user.role));
   }),
@@ -258,7 +278,18 @@ app.put(
 app.delete(
   '/api/products/:id',
   run(async (req, res) => {
-    const result = await prisma.product.deleteMany({ where: { id: req.params.id } });
+    const result = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({ where: { id: req.params.id } });
+      if (!product) return { count: 0 };
+      await tx.transaction.deleteMany({
+        where: {
+          type: 'ADD_STOCK',
+          createdAt: product.createdAt,
+          items: { some: { productId: product.id } },
+        },
+      });
+      return tx.product.deleteMany({ where: { id: product.id } });
+    });
     res.status(result.count ? 204 : 404).end();
   }),
 );

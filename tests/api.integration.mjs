@@ -60,6 +60,11 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   assert.equal(product.status, 201);
   assert.equal(product.data.itemCode, itemCode);
   const id = product.data.id;
+  const initialStock = (await request('/transactions')).data.find(
+    (t) => t.name === name && t.type === 'ADD_STOCK',
+  );
+  assert.equal(initialStock.quantity, 3);
+  assert.equal(new Date(initialStock.date) <= new Date(), true);
   const disposable = await request('/products', 'POST', {
     name: `Disposable ${randomUUID().slice(0, 8)}`,
     category,
@@ -154,7 +159,7 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   const correctionEntries = (await request('/transactions')).data.filter(
     (t) => t.name === correctionName,
   );
-  const addedEntry = correctionEntries.find((t) => t.type === 'ADD_STOCK');
+  const addedEntry = correctionEntries.find((t) => t.type === 'ADD_STOCK' && t.quantity === 3);
   const soldEntry = correctionEntries.find((t) => t.type === 'SALE');
   const financeBefore = (await request('/finance?period=day')).data[0];
   const dashboardBefore = (await request('/dashboard')).data;
@@ -202,7 +207,7 @@ test('dashboard, product, stock, finance, calendar, orders and role boundaries',
   const laterEntries = (await request('/transactions')).data.filter(
     (t) => t.name === correctionName && !t.reversedAt,
   );
-  const laterAdd = laterEntries.find((t) => t.type === 'ADD_STOCK');
+  const laterAdd = laterEntries.find((t) => t.type === 'ADD_STOCK' && t.quantity === 2);
   const laterSale = laterEntries.find((t) => t.type === 'SALE');
   assert.equal(
     (await request(`/transactions/${laterAdd.transactionId}/reverse`, 'POST')).status,

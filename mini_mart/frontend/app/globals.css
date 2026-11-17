@@ -697,6 +697,12 @@ td strong {
   gap: 8px;
   margin-bottom: 16px;
 }
+.order-share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
 .orders-heading {
   flex-wrap: wrap;
 }
