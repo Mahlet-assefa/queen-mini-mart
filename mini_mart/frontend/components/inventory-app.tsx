@@ -34,6 +34,8 @@ import {
 } from '@/lib/inventory';
 
 type Section = 'dashboard' | 'products' | 'categories' | 'finance' | 'orders' | 'tracker';
+type Notice = { message: string; type: 'success' | 'error' };
+type Confirmation = { title: string; message: string; action: string; onConfirm: () => void };
 type ProductForm = {
   name: string;
   itemCode: string;
@@ -90,7 +92,7 @@ export default function InventoryApp() {
     [period, setPeriod] = useState<'day' | 'week' | 'month' | 'year'>('day');
   const [loading, setLoading] = useState(false),
     [error, setError] = useState(''),
-    [toast, setToast] = useState(''),
+    [toast, setToast] = useState<Notice | null>(null),
     [search, setSearch] = useState(''),
     [sort, setSort] = useState<'az' | 'za' | 'category'>('az');
   const [modal, setModal] = useState<
@@ -132,7 +134,10 @@ export default function InventoryApp() {
     [selectedDate, setSelectedDate] = useState(today()),
     [selectedActivity, setSelectedActivity] = useState<Transaction['type']>('SALE');
   const [reversingId, setReversingId] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const notify = (message: string, type: Notice['type'] = 'success') => setToast({ message, type });
+  const notifyError = (message: string) => notify(message, 'error');
   useEffect(() => {
     api<User>('/auth/me')
       .then((u) => {
@@ -149,14 +154,17 @@ export default function InventoryApp() {
         setSection('products');
         setTimeout(() => searchRef.current?.focus(), 0);
       }
-      if (e.key === 'Escape') setModal(null);
+      if (e.key === 'Escape') {
+        if (confirmation) setConfirmation(null);
+        else setModal(null);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [confirmation]);
   useEffect(() => {
     if (!toast) return;
-    const id = setTimeout(() => setToast(''), 3800);
+    const id = setTimeout(() => setToast(null), 3800);
     return () => clearTimeout(id);
   }, [toast]);
   async function refresh(u = user) {
@@ -180,6 +188,7 @@ export default function InventoryApp() {
       setFinance(f);
     } catch (e) {
       setError((e as Error).message);
+      notifyError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -198,8 +207,10 @@ export default function InventoryApp() {
       setUser(u);
       setSection('dashboard');
       setPassword('');
+      notify(mode === 'signin' ? 'Signed in' : 'Account created');
     } catch (e) {
       setAuthError((e as Error).message);
+      notifyError((e as Error).message);
     }
   }
   async function signout() {
@@ -211,11 +222,16 @@ export default function InventoryApp() {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
+    notify('Signed out');
   }
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
     setPasswordError('');
-    if (newPassword !== confirmPassword) return setPasswordError('New passwords do not match.');
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      notifyError('New passwords do not match.');
+      return;
+    }
     setSavingPassword(true);
     try {
       const updated = await api<User>('/auth/change-password', {
@@ -227,9 +243,10 @@ export default function InventoryApp() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setToast('Password changed');
+      notify('Password changed');
     } catch (error) {
       setPasswordError((error as Error).message);
+      notifyError((error as Error).message);
     } finally {
       setSavingPassword(false);
     }
@@ -266,17 +283,22 @@ export default function InventoryApp() {
         body: JSON.stringify(form),
       });
       setModal(null);
-      setToast(editing ? 'Product updated' : 'Product added');
+      notify(editing ? 'Product updated' : 'Product added');
       setEditing(null);
       await refresh();
     } catch (e) {
       setFormError((e as Error).message);
+      notifyError((e as Error).message);
     }
   }
   async function createCategory() {
     if (savingCategory) return;
     const name = newCategory.trim();
-    if (!name) return setFormError('Enter a category name.');
+    if (!name) {
+      setFormError('Enter a category name.');
+      notifyError('Enter a category name.');
+      return;
+    }
     setSavingCategory(true);
     setFormError('');
     try {
@@ -289,8 +311,10 @@ export default function InventoryApp() {
       );
       setForm((current) => ({ ...current, category: category.name }));
       setNewCategory('');
+      notify('Category added');
     } catch (e) {
       setFormError((e as Error).message);
+      notifyError((e as Error).message);
     } finally {
       setSavingCategory(false);
     }
@@ -311,22 +335,31 @@ export default function InventoryApp() {
         method: 'PUT',
         body: JSON.stringify({ name: categoryName }),
       });
-      setToast('Category renamed');
+      notify('Category renamed');
       await refresh();
     } catch (e) {
       setCategoryError((e as Error).message);
+      notifyError((e as Error).message);
     }
   }
-  async function deleteCategory(category: Category) {
-    if (!window.confirm(`Delete ${category.name}?`)) return;
+  function deleteCategory(category: Category) {
+    setConfirmation({
+      title: 'Delete category?',
+      message: `Delete ${category.name}? This action cannot be undone.`,
+      action: 'Delete category',
+      onConfirm: () => void performDeleteCategory(category),
+    });
+  }
+  async function performDeleteCategory(category: Category) {
     setCategoryError('');
     try {
       await api(`/categories/${category.id}`, { method: 'DELETE' });
       setModal(null);
-      setToast('Category deleted');
+      notify('Category deleted');
       await refresh();
     } catch (e) {
       setCategoryError((e as Error).message);
+      notifyError((e as Error).message);
     }
   }
   function editProduct(p: Product) {
@@ -344,14 +377,21 @@ export default function InventoryApp() {
     setNewCategory('');
     setModal('product');
   }
-  async function deleteProduct(p: Product) {
-    if (!window.confirm(`Delete ${p.name}?`)) return;
+  function deleteProduct(p: Product) {
+    setConfirmation({
+      title: 'Delete product?',
+      message: `Delete ${p.name}? This action cannot be undone.`,
+      action: 'Delete product',
+      onConfirm: () => void performDeleteProduct(p),
+    });
+  }
+  async function performDeleteProduct(p: Product) {
     try {
       await api(`/products/${p.id}`, { method: 'DELETE' });
-      setToast('Product deleted');
+      notify('Product deleted');
       await refresh();
     } catch (e) {
-      setToast((e as Error).message);
+      notifyError((e as Error).message);
     }
   }
   async function adjust(e: React.FormEvent) {
@@ -363,7 +403,7 @@ export default function InventoryApp() {
         body: JSON.stringify({ quantity: Number(quantity), type: detail }),
       });
       setModal(null);
-      setToast(
+      notify(
         result.lowStock
           ? `${selected.name} is at or below its low stock level`
           : detail === 'SALE'
@@ -373,27 +413,31 @@ export default function InventoryApp() {
       await refresh();
     } catch (e) {
       setFormError((e as Error).message);
+      notifyError((e as Error).message);
     }
   }
-  async function reverseEntry(entry: Transaction) {
+  function reverseEntry(entry: Transaction) {
     const action = entry.type === 'SALE' ? 'sale' : 'stock addition';
     const amount = money(
       entry.quantity * (entry.type === 'SALE' ? entry.unitPrice : entry.unitCost || 0),
     );
-    if (
-      !window.confirm(
-        `Reverse this ${action}?\n\n${entry.name} · ${entry.quantity} units · ${amount}\n\nThis will update stock and reports.`,
-      )
-    )
-      return;
+    setConfirmation({
+      title: `Reverse this ${action}?`,
+      message: `${entry.name} · ${entry.quantity} units · ${amount}. This will update stock and reports.`,
+      action: 'Reverse entry',
+      onConfirm: () => void performReverseEntry(entry),
+    });
+  }
+  async function performReverseEntry(entry: Transaction) {
     setFormError('');
     setReversingId(entry.transactionId);
     try {
       await api(`/transactions/${entry.transactionId}/reverse`, { method: 'POST' });
       await refresh();
-      setToast('Entry reversed');
+      notify('Entry reversed');
     } catch (error) {
       setFormError((error as Error).message);
+      notifyError((error as Error).message);
     } finally {
       setReversingId(null);
     }
@@ -403,6 +447,7 @@ export default function InventoryApp() {
       q = Number(orderQuantity);
     if (!name || !Number.isInteger(q) || q < 1) {
       setFormError('Enter a product and positive quantity.');
+      notifyError('Enter a product and positive quantity.');
       return;
     }
     setOrderItems((items) => {
@@ -434,11 +479,12 @@ export default function InventoryApp() {
     try {
       await api('/orders', { method: 'POST', body: JSON.stringify({ date, items }) });
       setModal(null);
-      setToast('Order saved');
+      notify('Order saved');
       await refresh();
       return true;
     } catch (e) {
       setFormError((e as Error).message);
+      notifyError((e as Error).message);
       return false;
     }
   }
@@ -453,6 +499,7 @@ export default function InventoryApp() {
     }));
     if (items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) {
       setFormError('Enter a positive whole quantity for each item.');
+      notifyError('Enter a positive whole quantity for each item.');
       return;
     }
     await createOrder(items);
@@ -469,19 +516,28 @@ export default function InventoryApp() {
       )
     ) {
       setFormError('Select products and enter a positive whole quantity for each.');
+      notifyError('Select products and enter a positive whole quantity for each.');
       return;
     }
     await createOrder(items);
   }
-  async function clearOrders() {
+  function clearOrders() {
     if (!orders.length || clearingOrders) return;
+    setConfirmation({
+      title: 'Clear current orders?',
+      message: `${orders.length} ${orders.length === 1 ? 'order' : 'orders'} will move to history.`,
+      action: 'Clear orders',
+      onConfirm: () => void performClearOrders(),
+    });
+  }
+  async function performClearOrders() {
     setClearingOrders(true);
     try {
       await api('/orders/clear', { method: 'POST' });
-      setToast('Orders cleared and saved in history');
+      notify('Orders cleared and saved in history');
       await refresh();
     } catch (e) {
-      setToast((e as Error).message);
+      notifyError((e as Error).message);
     } finally {
       setClearingOrders(false);
     }
@@ -495,6 +551,7 @@ export default function InventoryApp() {
       setOrderHistory(await api<OrderClear[]>('/orders/history'));
     } catch (e) {
       setFormError((e as Error).message);
+      notifyError((e as Error).message);
     } finally {
       setHistoryLoading(false);
     }
@@ -567,6 +624,7 @@ export default function InventoryApp() {
               : 'Already have an account? Sign in'}
           </button>
         </section>
+        <Snackbar notice={toast} />
       </main>
     );
   if (user.mustChangePassword || changingPassword)
@@ -634,6 +692,7 @@ export default function InventoryApp() {
             {user.mustChangePassword ? 'Sign out' : 'Cancel'}
           </button>
         </section>
+        <Snackbar notice={toast} />
       </main>
     );
   const nav: { id: Section; label: string; icon: typeof Package }[] = [
@@ -815,7 +874,7 @@ export default function InventoryApp() {
                     className="secondary-button"
                     onClick={() => {
                       setSection('products');
-                      setToast('Choose a product to add stock.');
+                      notify('Choose a product to add stock.');
                     }}
                   >
                     <Plus size={16} /> Add stock
@@ -1137,11 +1196,7 @@ export default function InventoryApp() {
           </>
         )}
       </main>
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
+      <Snackbar notice={toast} />
       {modal === 'category' && selectedCategory && (
         <Modal title={selectedCategory.name} close={() => setModal(null)} wide>
           <div className="category-manage">
@@ -1621,8 +1676,47 @@ export default function InventoryApp() {
           />
         </Modal>
       )}
+      {confirmation && (
+        <div className="modal-backdrop confirm-backdrop">
+          <section
+            className="modal card confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
+            aria-describedby="confirm-message"
+          >
+            <h2 id="confirm-title">{confirmation.title}</h2>
+            <p id="confirm-message">{confirmation.message}</p>
+            <div className="confirm-actions">
+              <button className="confirm-cancel" autoFocus onClick={() => setConfirmation(null)}>
+                Cancel
+              </button>
+              <button
+                className="confirm-proceed"
+                onClick={() => {
+                  const action = confirmation.onConfirm;
+                  setConfirmation(null);
+                  action();
+                }}
+              >
+                {confirmation.action}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
+}
+function Snackbar({ notice }: { notice: Notice | null }) {
+  return notice ? (
+    <div
+      className={`toast toast-${notice.type}`}
+      role={notice.type === 'error' ? 'alert' : 'status'}
+    >
+      {notice.message}
+    </div>
+  ) : null;
 }
 function Header({
   eyebrow,
