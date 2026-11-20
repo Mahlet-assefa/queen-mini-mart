@@ -207,14 +207,19 @@ export default function InventoryApp() {
       setUser(u);
       setSection('dashboard');
       setPassword('');
-      notify(mode === 'signin' ? 'Signed in' : 'Account created');
+      notify(mode === 'signin' ? 'Signed in successfully.' : 'Account created successfully.');
     } catch (e) {
       setAuthError((e as Error).message);
       notifyError((e as Error).message);
     }
   }
   async function signout() {
-    await api('/auth/signout', { method: 'POST' }).catch(() => {});
+    try {
+      await api('/auth/signout', { method: 'POST' });
+    } catch (e) {
+      notifyError((e as Error).message);
+      return;
+    }
     setUser(null);
     setProducts([]);
     setDashboard(null);
@@ -222,7 +227,7 @@ export default function InventoryApp() {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    notify('Signed out');
+    notify('Signed out successfully.');
   }
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -243,7 +248,7 @@ export default function InventoryApp() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      notify('Password changed');
+      notify('Password changed successfully.');
     } catch (error) {
       setPasswordError((error as Error).message);
       notifyError((error as Error).message);
@@ -283,7 +288,7 @@ export default function InventoryApp() {
         body: JSON.stringify(form),
       });
       setModal(null);
-      notify(editing ? 'Product updated' : 'Product added');
+      notify(editing ? 'Product updated successfully.' : 'Product added successfully.');
       setEditing(null);
       await refresh();
     } catch (e) {
@@ -311,7 +316,7 @@ export default function InventoryApp() {
       );
       setForm((current) => ({ ...current, category: category.name }));
       setNewCategory('');
-      notify('Category added');
+      notify('Category added successfully.');
     } catch (e) {
       setFormError((e as Error).message);
       notifyError((e as Error).message);
@@ -335,7 +340,7 @@ export default function InventoryApp() {
         method: 'PUT',
         body: JSON.stringify({ name: categoryName }),
       });
-      notify('Category renamed');
+      notify('Category renamed successfully.');
       await refresh();
     } catch (e) {
       setCategoryError((e as Error).message);
@@ -355,7 +360,7 @@ export default function InventoryApp() {
     try {
       await api(`/categories/${category.id}`, { method: 'DELETE' });
       setModal(null);
-      notify('Category deleted');
+      notify('Category deleted successfully.');
       await refresh();
     } catch (e) {
       setCategoryError((e as Error).message);
@@ -388,7 +393,7 @@ export default function InventoryApp() {
   async function performDeleteProduct(p: Product) {
     try {
       await api(`/products/${p.id}`, { method: 'DELETE' });
-      notify('Product deleted');
+      notify('Product deleted successfully.');
       await refresh();
     } catch (e) {
       notifyError((e as Error).message);
@@ -403,12 +408,12 @@ export default function InventoryApp() {
         body: JSON.stringify({ quantity: Number(quantity), type: detail }),
       });
       setModal(null);
+      const actionMessage =
+        detail === 'SALE' ? 'Sale recorded successfully.' : 'Stock added successfully.';
       notify(
         result.lowStock
-          ? `${selected.name} is at or below its low stock level`
-          : detail === 'SALE'
-            ? 'Sale recorded'
-            : 'Stock added',
+          ? `${actionMessage} ${selected.name} is at or below its low stock level.`
+          : actionMessage,
       );
       await refresh();
     } catch (e) {
@@ -434,7 +439,7 @@ export default function InventoryApp() {
     try {
       await api(`/transactions/${entry.transactionId}/reverse`, { method: 'POST' });
       await refresh();
-      notify('Entry reversed');
+      notify('Entry reversed successfully.');
     } catch (error) {
       setFormError((error as Error).message);
       notifyError((error as Error).message);
@@ -479,7 +484,7 @@ export default function InventoryApp() {
     try {
       await api('/orders', { method: 'POST', body: JSON.stringify({ date, items }) });
       setModal(null);
-      notify('Order saved');
+      notify('Order saved successfully.');
       await refresh();
       return true;
     } catch (e) {
@@ -534,7 +539,7 @@ export default function InventoryApp() {
     setClearingOrders(true);
     try {
       await api('/orders/clear', { method: 'POST' });
-      notify('Orders cleared and saved in history');
+      notify('Orders cleared successfully and saved in history.');
       await refresh();
     } catch (e) {
       notifyError((e as Error).message);
@@ -874,7 +879,6 @@ export default function InventoryApp() {
                     className="secondary-button"
                     onClick={() => {
                       setSection('products');
-                      notify('Choose a product to add stock.');
                     }}
                   >
                     <Plus size={16} /> Add stock
