@@ -785,33 +785,53 @@ td strong {
   gap: 4px;
   overflow: hidden;
 }
-.calendar-day:hover {
-  background: #f7fbf7;
-}
 .calendar-day.outside {
   background: #fafbfa;
   color: #aeb8af;
 }
-.calendar-day.is-today > strong {
+.calendar-day.is-today > .calendar-date {
   background: var(--green);
   color: #fff;
   border-radius: 50%;
 }
-.calendar-day > strong {
+.calendar-date {
   width: 24px;
   height: 24px;
   display: grid;
   place-items: center;
   font-size: 12px;
+  font-weight: 700;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
 }
-.calendar-day small {
-  font-size: 10px;
-  padding: 3px 5px;
+.calendar-activities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+}
+.calendar-activity {
+  border: 0;
   border-radius: 4px;
+  padding: 4px;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.calendar-activity strong,
+.calendar-activity small {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
+}
+.calendar-activity strong {
+  font-size: 10px;
+}
+.calendar-activity small {
+  font-size: 10px;
 }
 .event-sale {
   background: #fbe9e9;
@@ -821,10 +841,11 @@ td strong {
   background: #e7f5e9;
   color: #2e8653;
 }
-.calendar-day small:not(.event-sale):not(.event-add) {
-  color: var(--muted);
+.calendar-activity:hover {
+  filter: brightness(0.96);
 }
-.calendar-day:focus-visible {
+.calendar-activity:focus-visible,
+.calendar-date:focus-visible {
   z-index: 1;
 }
 .calendar-day:first-of-type {
@@ -1243,8 +1264,15 @@ td strong {
     min-height: 70px;
     padding: 4px;
   }
-  .calendar-day small {
+  .calendar-activity small {
     display: none;
+  }
+  .calendar-activity {
+    padding: 3px 1px;
+    text-align: center;
+  }
+  .calendar-activity strong {
+    font-size: 8px;
   }
   .weekday {
     font-size: 9px;

@@ -129,7 +129,8 @@ export default function InventoryApp() {
     [openHistoryBatch, setOpenHistoryBatch] = useState<string | null>(null);
   const [view, setView] = useState<'day' | 'week' | 'month' | 'year'>('month'),
     [cursor, setCursor] = useState(new Date()),
-    [selectedDate, setSelectedDate] = useState(today());
+    [selectedDate, setSelectedDate] = useState(today()),
+    [selectedActivity, setSelectedActivity] = useState<Transaction['type'] | null>(null);
   const [reversingId, setReversingId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -1120,8 +1121,9 @@ export default function InventoryApp() {
                   view={view}
                   cursor={cursor}
                   transactions={transactions}
-                  onSelect={(d) => {
+                  onSelect={(d, activity) => {
                     setSelectedDate(d);
+                    setSelectedActivity(activity);
                     setFormError('');
                     setModal('day');
                   }}
@@ -1587,17 +1589,22 @@ export default function InventoryApp() {
       )}
       {modal === 'day' && (
         <Modal
-          title={new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-US', {
+          title={`${new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-US', {
             weekday: 'long',
             month: 'long',
             day: 'numeric',
             year: 'numeric',
-          })}
+          })}${selectedActivity ? ` · ${selectedActivity === 'SALE' ? 'Sold' : 'Added'}` : ''}`}
           close={() => setModal(null)}
           wide
         >
           <DayDetails
-            rows={transactions.filter((t) => dateKey(t.date) === selectedDate)}
+            rows={transactions.filter(
+              (t) =>
+                dateKey(t.date) === selectedDate &&
+                (!selectedActivity || t.type === selectedActivity),
+            )}
+            activity={selectedActivity}
             onReverse={reverseEntry}
             reversingId={reversingId}
             error={formError}
@@ -1898,7 +1905,7 @@ function Calendar({
   view: 'day' | 'week' | 'month' | 'year';
   cursor: Date;
   transactions: Transaction[];
-  onSelect: (date: string) => void;
+  onSelect: (date: string, activity: Transaction['type'] | null) => void;
   onMonth: (date: Date) => void;
 }) {
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -1954,19 +1961,39 @@ function Calendar({
         const key = dateKey(d),
           events = transactions.filter((t) => dateKey(t.date) === key && !t.reversedAt);
         return (
-          <button
+          <div
             key={key}
             className={`calendar-day ${d.getMonth() !== cursor.getMonth() && view === 'month' ? 'outside' : ''} ${key === today() ? 'is-today' : ''}`}
-            onClick={() => onSelect(key)}
           >
-            <strong>{d.getDate()}</strong>
-            {events.slice(0, 2).map((t) => (
-              <small className={t.type === 'SALE' ? 'event-sale' : 'event-add'} key={t.id}>
-                {t.type === 'SALE' ? 'Sold' : 'Added'} {t.name}
-              </small>
-            ))}
-            {events.length > 2 && <small>+{events.length - 2} more</small>}
-          </button>
+            <button
+              className="calendar-date"
+              onClick={() => onSelect(key, null)}
+              aria-label={`All activity on ${key}`}
+            >
+              {d.getDate()}
+            </button>
+            <div className="calendar-activities">
+              {(['SALE', 'ADD_STOCK'] as const).map((type) => {
+                const items = events.filter((t) => t.type === type);
+                return (
+                  <button
+                    key={type}
+                    className={`calendar-activity ${type === 'SALE' ? 'event-sale' : 'event-add'}`}
+                    onClick={() => onSelect(key, type)}
+                    aria-label={`${type === 'SALE' ? 'Sold' : 'Added'} activity on ${key}: ${items.length} entries`}
+                  >
+                    <strong>
+                      {type === 'SALE' ? 'Sold' : 'Added'} ({items.length})
+                    </strong>
+                    {items.slice(0, 2).map((t) => (
+                      <small key={t.id}>{t.name}</small>
+                    ))}
+                    {items.length > 2 && <small>+{items.length - 2} more</small>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
     </div>
@@ -1974,11 +2001,13 @@ function Calendar({
 }
 function DayDetails({
   rows,
+  activity,
   onReverse,
   reversingId,
   error,
 }: {
   rows: Transaction[];
+  activity: Transaction['type'] | null;
   onReverse: (entry: Transaction) => void;
   reversingId: string | null;
   error: string;
@@ -1988,15 +2017,22 @@ function DayDetails({
   return (
     <>
       <div className="day-totals">
-        <span>
-          <strong>{added.reduce((a, t) => a + t.quantity, 0)}</strong> units added
-        </span>
-        <span>
-          <strong>{sold.reduce((a, t) => a + t.quantity, 0)}</strong> units sold
-        </span>
-        <span>
-          <strong>{money(sold.reduce((a, t) => a + t.quantity * t.unitPrice, 0))}</strong> revenue
-        </span>
+        {activity !== 'SALE' && (
+          <span>
+            <strong>{added.reduce((a, t) => a + t.quantity, 0)}</strong> units added
+          </span>
+        )}
+        {activity !== 'ADD_STOCK' && (
+          <>
+            <span>
+              <strong>{sold.reduce((a, t) => a + t.quantity, 0)}</strong> units sold
+            </span>
+            <span>
+              <strong>{money(sold.reduce((a, t) => a + t.quantity * t.unitPrice, 0))}</strong>{' '}
+              revenue
+            </span>
+          </>
+        )}
       </div>
       {error && <p className="error">{error}</p>}
       <div className="table-scroll">
@@ -2053,7 +2089,11 @@ function DayDetails({
             ))}
           </tbody>
         </table>
-        {!rows.length && <Empty text="No activity on this date." />}
+        {!rows.length && (
+          <Empty
+            text={`No ${activity === 'SALE' ? 'sold items' : activity === 'ADD_STOCK' ? 'added items' : 'activity'} on this date.`}
+          />
+        )}
       </div>
     </>
   );
