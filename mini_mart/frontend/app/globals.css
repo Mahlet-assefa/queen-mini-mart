@@ -825,7 +825,33 @@ td strong {
   min-height: 180px;
 }
 .day-activity-tabs {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  padding: 0;
+  background: none;
   margin-bottom: 16px;
+}
+.day-activity-tabs button {
+  flex: 1;
+  padding: 12px;
+  font-size: 14px;
+}
+.day-activity-tabs button:first-child {
+  background: #fbe9e9;
+  color: #b44444;
+}
+.day-activity-tabs button:last-child {
+  background: #e7f5e9;
+  color: #2e8653;
+}
+.day-activity-tabs button:first-child.active {
+  background: #b44444;
+  color: #fff;
+}
+.day-activity-tabs button:last-child.active {
+  background: #2e8653;
+  color: #fff;
 }
 .year-grid {
   display: grid;
